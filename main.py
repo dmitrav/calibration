@@ -1,7 +1,15 @@
 
-import pandas, seaborn, random
+import pandas, seaborn, random, time
 from matplotlib import pyplot
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.linear_model import Lasso, Ridge, ElasticNet
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.metrics import r2_score, median_absolute_error, make_scorer
+from matplotlib import pyplot
+
 from constants import dilutions, aas, pps, mz_dict
+from constants import seed, split_ratio
 
 
 def get_data(path, sample_codes, metabolites):
@@ -75,10 +83,10 @@ def assemble_dataset(pp_data, aa_data):
         df['mz'] = mz_dict[m]
         X = pandas.concat([X.reset_index(drop=True), df.reset_index(drop=True)])
 
-    full = pandas.concat([Y, X], axis=1)
-    full.columns = ['spiked_in', *list(X.columns)]
+    X = pandas.get_dummies(X)
+    Y.columns = ['spiked_in']
 
-    return full
+    return X, Y
 
 
 if __name__ == '__main__':
@@ -87,7 +95,32 @@ if __name__ == '__main__':
     normalized_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], pps)
     normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], aas)
 
-    dataset = assemble_dataset(normalized_pp, normalized_aa)
+    X, Y = assemble_dataset(normalized_pp, normalized_aa)
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, train_size=split_ratio, random_state=seed)
+
+    pipeline = Pipeline([
+        ('scaler', StandardScaler()),
+        ('regressor', ElasticNet(random_state=seed))
+    ])
+
+    param_grid = {
+        'regressor__fit_intercept': [True, False],
+        'regressor__alpha': [0.0001, 0.0005, 0.001, 0.005, 0.01],
+    }
+
+    scoring = {"r2": make_scorer(r2_score), "mae": make_scorer(median_absolute_error)}
+    reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=5, n_jobs=-1)
+
+    start = time.time()
+    reg.fit(X_train, y_train)
+    print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
+
+    predictions = reg.predict(X_test)
+
+    pyplot.plot(y_test, predictions, 'o')
+    pyplot.title('r2 = {}'.format(reg.best_score_))
+    pyplot.grid()
+    pyplot.show()
 
 
 
