@@ -90,6 +90,12 @@ def assemble_dataset(pp_data, aa_data):
     return X, Y
 
 
+def remove_outliers(X, Y, threshold):
+    data = pandas.concat([Y, X], axis=1)
+    data = data[data['spiked_in'] < threshold]
+    return data.iloc[:, 1:], data.iloc[:, 0]
+
+
 def get_compounds_classes(features):
 
     compounds_classes = []
@@ -112,37 +118,43 @@ if __name__ == '__main__':
     normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], aas)
 
     X, Y = assemble_dataset(normalized_pp, normalized_aa)
-    X_train, X_test, y_train, y_test = train_test_split(X, Y, train_size=split_ratio, random_state=seed)
 
-    pipeline = Pipeline([
-        ('scaler', StandardScaler()),
-        ('regressor', SVR(kernel='rbf'))
-    ])
+    for t in [0.4e6, 1.1e6, 1e7]:
 
-    param_grid = {
-        'regressor__C': [50, 100, 150],
-        'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
-    }
+        fX, fY = remove_outliers(X, Y, t)  # removes a long tail of single outliers
+        print('shape with t = {}: {}'.format(t, fY.shape))
+        X_train, X_test, y_train, y_test = train_test_split(fX, fY, train_size=split_ratio, random_state=seed)
 
-    scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
-    reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=5, n_jobs=-1)
+        pipeline = Pipeline([
+            ('scaler', StandardScaler()),
+            ('regressor', SVR(kernel='rbf'))
+        ])
 
-    start = time.time()
-    reg.fit(X_train, numpy.log(y_train).values.ravel())
-    print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
-    print(reg.best_params_)
-    results = pandas.DataFrame(reg.cv_results_)
+        param_grid = {
+            'regressor__C': [50, 100, 150],
+            'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
+        }
 
-    predictions = numpy.exp(reg.predict(X_test))
-    data = pandas.DataFrame({'true': y_test.values.reshape(-1), 'predicted': predictions,
-                             'dilution': X_test['dilution'].values.reshape(-1),
-                             'compound_class': get_compounds_classes(X_test)})
+        scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
+        reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=5, n_jobs=-1)
 
-    pyplot.figure(figsize=(6,6))
-    seaborn.scatterplot(data=data, x='true', y='predicted', hue='dilution', style='compound_class', palette='muted')
-    pyplot.title('R2 = {:.3f}, MSE = {:.3f}'.format(results.loc[reg.best_index_, 'mean_test_r2'],
-                                                              -results.loc[reg.best_index_, 'mean_test_mse']))
-    pyplot.grid()
+        start = time.time()
+        reg.fit(X_train, numpy.log(y_train).values.ravel())
+        print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
+        print(reg.best_params_)
+        results = pandas.DataFrame(reg.cv_results_)
+
+        predictions = numpy.exp(reg.predict(X_test))
+        data = pandas.DataFrame({'true': y_test.values.reshape(-1), 'predicted': predictions,
+                                 'dilution': X_test['dilution'].values.reshape(-1),
+                                 'compound_class': get_compounds_classes(X_test)})
+
+        pyplot.figure(figsize=(6,6))
+        seaborn.scatterplot(data=data, x='true', y='predicted', hue='dilution', style='compound_class', palette='muted')
+        pyplot.title('R2 = {:.3f}, MSE = {:.3f}, values < {:.1e}'.format(results.loc[reg.best_index_, 'mean_test_r2'],
+                                                                     -results.loc[reg.best_index_, 'mean_test_mse'], t))
+        pyplot.grid()
+        pyplot.tight_layout()
     pyplot.show()
 
 
