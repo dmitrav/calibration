@@ -1,11 +1,12 @@
 
-import pandas, seaborn, random, time
+import pandas, seaborn, random, time, numpy, seaborn
 from matplotlib import pyplot
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.linear_model import Lasso, Ridge, ElasticNet
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV, train_test_split
-from sklearn.metrics import r2_score, median_absolute_error, make_scorer
+from sklearn.metrics import r2_score, mean_squared_error, make_scorer
+from sklearn.svm import SVR
 from matplotlib import pyplot
 
 from constants import dilutions, aas, pps, mz_dict
@@ -63,9 +64,9 @@ def assemble_dataset(pp_data, aa_data):
         X = pandas.concat([X.reset_index(drop=True), df.reset_index(drop=True)])
 
     saa = aa_data.loc[aa_data['sample'] == 'P2_SAA', :].sort_index()
-    aa = aa_data.loc[aa_data['sample'] == 'P1_AA', :]
+    aa = aa_data.loc[aa_data['sample'] == 'P1_AA', :].sort_index()
     aa.drop(index=('P1_AA_0064_0108_2'), inplace=True)  # this one is missing in P2_SAA
-    srm = aa_data.loc[aa_data['sample'] == 'P2_SRM', :]
+    srm = aa_data.loc[aa_data['sample'] == 'P2_SRM', :].sort_index()
     srm.drop(index=('P2_SRM_0064_0108_2'), inplace=True)  # this one is missing in P2_SAA
 
     for m in aas:
@@ -89,6 +90,21 @@ def assemble_dataset(pp_data, aa_data):
     return X, Y
 
 
+def get_compounds_classes(features):
+
+    compounds_classes = []
+    # hardcoded for two classes in the data only
+    for c in list(features['compound_class_AA']):
+        if int(c) == 1:
+            compounds_classes.append('AA')
+        elif int(c) == 0:
+            compounds_classes.append('PP')
+        else:
+            raise NotImplementedError
+
+    return compounds_classes
+
+
 if __name__ == '__main__':
 
     path = '/Users/andreidm/ETH/projects/normalization/res/SRM_v7/6b8943e1/normalized_6b8943e1.csv'
@@ -100,25 +116,32 @@ if __name__ == '__main__':
 
     pipeline = Pipeline([
         ('scaler', StandardScaler()),
-        ('regressor', ElasticNet(random_state=seed))
+        ('regressor', SVR(kernel='rbf'))
     ])
 
     param_grid = {
-        'regressor__fit_intercept': [True, False],
-        'regressor__alpha': [0.0001, 0.0005, 0.001, 0.005, 0.01],
+        'regressor__C': [50, 100, 150],
+        'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
     }
 
-    scoring = {"r2": make_scorer(r2_score), "mae": make_scorer(median_absolute_error)}
+    scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
     reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=5, n_jobs=-1)
 
     start = time.time()
-    reg.fit(X_train, y_train)
+    reg.fit(X_train, numpy.log(y_train).values.ravel())
     print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
+    print(reg.best_params_)
+    results = pandas.DataFrame(reg.cv_results_)
 
-    predictions = reg.predict(X_test)
+    predictions = numpy.exp(reg.predict(X_test))
+    data = pandas.DataFrame({'true': y_test.values.reshape(-1), 'predicted': predictions,
+                             'dilution': X_test['dilution'].values.reshape(-1),
+                             'compound_class': get_compounds_classes(X_test)})
 
-    pyplot.plot(y_test, predictions, 'o')
-    pyplot.title('r2 = {}'.format(reg.best_score_))
+    pyplot.figure(figsize=(6,6))
+    seaborn.scatterplot(data=data, x='true', y='predicted', hue='dilution', style='compound_class', palette='muted')
+    pyplot.title('R2 = {:.3f}, MSE = {:.3f}'.format(results.loc[reg.best_index_, 'mean_test_r2'],
+                                                              -results.loc[reg.best_index_, 'mean_test_mse']))
     pyplot.grid()
     pyplot.show()
 
