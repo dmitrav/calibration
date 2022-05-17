@@ -116,7 +116,8 @@ def get_compounds_classes(features):
 def train_baseline_model(X, Y,
                          outlier_thresholds=(0.4e6, 1.1e6, 1e7),  # -> [best MSE, tradeoff, best R2]
                          split_ratio=split_ratio,
-                         random_seed=seed):
+                         random_seed=seed,
+                         save_to=save_to):
 
     for t in outlier_thresholds:
 
@@ -160,12 +161,12 @@ def train_baseline_model(X, Y,
                                                                      -results.loc[reg.best_index_, 'mean_test_mse'], t))
         pyplot.grid()
         pyplot.tight_layout()
-        # pyplot.savefig(save_to + 'regression_t={}.pdf'.format(t))
+        # pyplot.savefig(save_to + 'regression_t={:.3e}.pdf'.format(t))
         # pyplot.close()
     pyplot.show()
 
 
-def train_with_missing_dilutions(X, Y, threshold=1e7):
+def train_with_missing_dilutions(X, Y, threshold=1e7, save_to=save_to):
 
     results = {'n_dilutions': [], 'score': [], 'metric': []}
     for k in range(2, len(dilutions)):
@@ -223,12 +224,12 @@ def train_with_missing_dilutions(X, Y, threshold=1e7):
 
     seaborn.boxplot(x='n_dilutions', y='score', data=df[df['metric'] == 'R2'])
     pyplot.title('R2 scores')
-    pyplot.savefig(save_to + 'r2.pdf')
+    pyplot.savefig(save_to + 'missing_dilutions_r2.pdf')
     pyplot.close()
 
     seaborn.boxplot(x='n_dilutions', y='score', data=df[df['metric'] == 'MSE'])
     pyplot.title('MSE scores')
-    pyplot.savefig(save_to + 'mse.pdf')
+    pyplot.savefig(save_to + 'missing_dilutions_mse.pdf')
     pyplot.close()
 
 
