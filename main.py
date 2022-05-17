@@ -111,20 +111,17 @@ def get_compounds_classes(features):
     return compounds_classes
 
 
-if __name__ == '__main__':
+def train_baseline_model(X, Y, outlier_thresholds, split_ratio=split_ratio, random_seed=seed):
 
-    path = '/Users/andreidm/ETH/projects/normalization/res/SRM_v7/6b8943e1/normalized_6b8943e1.csv'
-    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], pps)
-    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], aas)
-
-    X, Y = assemble_dataset(normalized_pp, normalized_aa)
-
-    for t in [0.4e6, 1.1e6, 1e7]:
+    for t in outlier_thresholds:
 
         fX, fY = remove_outliers(X, Y, t)  # removes a long tail of single outliers
         print('shape with t = {}: {}'.format(t, fY.shape))
-        X_train, X_test, y_train, y_test = train_test_split(fX, fY, train_size=split_ratio, random_state=seed)
+        X_train, X_test, y_train, y_test = train_test_split(fX, fY, train_size=split_ratio, random_state=random_seed)
 
+        # TODO:
+        #  - try other models,
+        #  - implement systematic hyperparameter search
         pipeline = Pipeline([
             ('scaler', StandardScaler()),
             ('regressor', SVR(kernel='rbf'))
@@ -144,18 +141,35 @@ if __name__ == '__main__':
         print(reg.best_params_)
         results = pandas.DataFrame(reg.cv_results_)
 
+        # TODO:
+        #  - look into feature importances
         predictions = numpy.exp(reg.predict(X_test))
         data = pandas.DataFrame({'true': y_test.values.reshape(-1), 'predicted': predictions,
                                  'dilution': X_test['dilution'].values.reshape(-1),
+                                 'mz': X_test['mz'].values.reshape(-1),
                                  'compound_class': get_compounds_classes(X_test)})
 
-        pyplot.figure(figsize=(6,6))
-        seaborn.scatterplot(data=data, x='true', y='predicted', hue='dilution', style='compound_class', palette='muted')
+        pyplot.figure(figsize=(7,7))
+        seaborn.scatterplot(data=data, x='true', y='predicted', hue='dilution', style='compound_class', size='mz', palette='muted')
         pyplot.title('R2 = {:.3f}, MSE = {:.3f}, values < {:.1e}'.format(results.loc[reg.best_index_, 'mean_test_r2'],
                                                                      -results.loc[reg.best_index_, 'mean_test_mse'], t))
         pyplot.grid()
         pyplot.tight_layout()
     pyplot.show()
+
+
+if __name__ == '__main__':
+
+    path = '/Users/andreidm/ETH/projects/normalization/res/SRM_v7/6b8943e1/normalized_6b8943e1.csv'
+    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], pps)
+    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], aas)
+
+    X, Y = assemble_dataset(normalized_pp, normalized_aa)
+
+    thresholds = [0.4e6, 1.1e6, 1e7]  # -> [best MSE, tradeoff, best R2]
+    train_baseline_model(X, Y, thresholds)
+
+
 
 
 
