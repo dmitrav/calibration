@@ -1,5 +1,5 @@
 
-import pandas, seaborn, random, time, numpy, seaborn
+import pandas, seaborn, random, time, numpy, seaborn, itertools
 from matplotlib import pyplot
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.linear_model import Lasso, Ridge, ElasticNet
@@ -11,6 +11,7 @@ from matplotlib import pyplot
 
 from constants import dilutions, aas, pps, mz_dict
 from constants import seed, split_ratio
+from constants import save_to
 
 
 def get_data(path, sample_codes, metabolites):
@@ -36,6 +37,7 @@ def plot_dilutions(data, metabolites):
         g.map(seaborn.boxplot, "dilution", m, order=['0001', '0002', '0004', '0008', '0016', '0032', '0064'])
         pyplot.tight_layout()
 
+    # pyplot.savefig(save_to + 'dilutions.pdf')
     pyplot.show()
 
 
@@ -111,7 +113,10 @@ def get_compounds_classes(features):
     return compounds_classes
 
 
-def train_baseline_model(X, Y, outlier_thresholds, split_ratio=split_ratio, random_seed=seed):
+def train_baseline_model(X, Y,
+                         outlier_thresholds=(0.4e6, 1.1e6, 1e7),  # -> [best MSE, tradeoff, best R2]
+                         split_ratio=split_ratio,
+                         random_seed=seed):
 
     for t in outlier_thresholds:
 
@@ -155,7 +160,76 @@ def train_baseline_model(X, Y, outlier_thresholds, split_ratio=split_ratio, rand
                                                                      -results.loc[reg.best_index_, 'mean_test_mse'], t))
         pyplot.grid()
         pyplot.tight_layout()
+        # pyplot.savefig(save_to + 'regression_t={}.pdf'.format(t))
+        # pyplot.close()
     pyplot.show()
+
+
+def train_with_missing_dilutions(X, Y, threshold=1e7):
+
+    results = {'n_dilutions': [], 'score': [], 'metric': []}
+    for k in range(2, len(dilutions)):
+        # pick randomly k dilutions to train on
+        dilutions_train = list(itertools.combinations(dilutions, k))
+
+        scores = []
+        for combination in dilutions_train:
+
+            combination = [int(x) for x in combination]
+
+            data = pandas.concat([Y, X], axis=1)
+            data = data[data['spiked_in'] < threshold]
+
+            df = data.loc[data['dilution'].isin(combination), :]
+            X_train = df.iloc[:, 1:]
+            y_train = df.iloc[:, 0]
+
+            df = data.loc[~data['dilution'].isin(combination), :]
+            X_test = df.iloc[:, 1:]
+            y_test = df.iloc[:, 0]
+
+            pipeline = Pipeline([
+                ('scaler', StandardScaler()),
+                ('regressor', SVR())
+            ])
+
+            param_grid = {
+                'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
+                'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
+                'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
+            }
+
+            scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
+            reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=3, n_jobs=-1)
+
+            start = time.time()
+            reg.fit(X_train, numpy.log(y_train).values.ravel())
+            print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
+            print(reg.best_params_)
+
+            r2 = pandas.DataFrame(reg.cv_results_).loc[reg.best_index_, 'mean_test_r2'].astype('float')
+            mse = -pandas.DataFrame(reg.cv_results_).loc[reg.best_index_, 'mean_test_mse'].astype('float')
+            scores.append((r2, mse))
+
+        results['n_dilutions'].extend([k for x in scores])
+        results['score'].extend([x[0] for x in scores])
+        results['metric'].extend(['R2' for x in scores])
+
+        results['n_dilutions'].extend([k for x in scores])
+        results['score'].extend([x[1] for x in scores])
+        results['metric'].extend(['MSE' for x in scores])
+
+    df = pandas.DataFrame(results)
+
+    seaborn.boxplot(x='n_dilutions', y='score', data=df[df['metric'] == 'R2'])
+    pyplot.title('R2 scores')
+    pyplot.savefig(save_to + 'r2.pdf')
+    pyplot.close()
+
+    seaborn.boxplot(x='n_dilutions', y='score', data=df[df['metric'] == 'MSE'])
+    pyplot.title('MSE scores')
+    pyplot.savefig(save_to + 'mse.pdf')
+    pyplot.close()
 
 
 if __name__ == '__main__':
@@ -165,9 +239,11 @@ if __name__ == '__main__':
     normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], aas)
 
     X, Y = assemble_dataset(normalized_pp, normalized_aa)
+    # train_baseline_model(X,Y)  # train and test on the entire dataset
+    train_with_missing_dilutions(X,Y)  # train to predict intensities for missing dilutions
 
-    thresholds = [0.4e6, 1.1e6, 1e7]  # -> [best MSE, tradeoff, best R2]
-    train_baseline_model(X, Y, thresholds)
+
+
 
 
 

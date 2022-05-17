@@ -1,6 +1,5 @@
 
 # DATA
-
 dilutions = ['0001', '0002', '0004', '0008', '0016', '0032', '0064']
 aas = ['Proline', 'Asparagine', 'Lysine', 'Phenylalanine', 'Tyrosine']
 pps = ['Cytosine', 'Uracil', 'Thymine', 'Adenine']
@@ -12,3 +11,5 @@ mz_dict = {k: v for k, v in zip(data['name'], data['mz'].astype('float'))}
 # ML
 seed = 2022
 split_ratio = 0.8
+
+save_to = '/Users/andreidm/ETH/projects/calibration/res/'
