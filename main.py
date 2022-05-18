@@ -11,7 +11,7 @@ from matplotlib import pyplot
 
 from constants import dilutions, aas, pps, mz_dict
 from constants import seed, split_ratio
-from constants import save_to
+from constants import save_to, n_jobs
 
 
 def get_data(path, sample_codes, metabolites):
@@ -139,17 +139,19 @@ def train_baseline_model(X, Y,
         }
 
         scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
-        reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=5, n_jobs=-1)
+        reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=5, n_jobs=n_jobs)
 
         start = time.time()
         reg.fit(X_train, numpy.log(y_train).values.ravel())
         print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
         print(reg.best_params_)
-        results = pandas.DataFrame(reg.cv_results_)
 
         # TODO:
         #  - look into feature importances
         predictions = numpy.exp(reg.predict(X_test))
+        r2 = r2_score(y_test, predictions)
+        mse = mean_squared_error(numpy.log(y_test), numpy.log(predictions))
+
         data = pandas.DataFrame({'true': y_test.values.reshape(-1), 'predicted': predictions,
                                  'dilution': X_test['dilution'].values.reshape(-1),
                                  'mz': X_test['mz'].values.reshape(-1),
@@ -157,16 +159,18 @@ def train_baseline_model(X, Y,
 
         pyplot.figure(figsize=(7,7))
         seaborn.scatterplot(data=data, x='true', y='predicted', hue='dilution', style='compound_class', size='mz', palette='muted')
-        pyplot.title('R2 = {:.3f}, MSE = {:.3f}, values < {:.1e}'.format(results.loc[reg.best_index_, 'mean_test_r2'],
-                                                                     -results.loc[reg.best_index_, 'mean_test_mse'], t))
+        pyplot.title('R2 = {:.3f}, MSE(log) = {:.3f}, values < {:.1e}'.format(r2, mse, t))
         pyplot.grid()
         pyplot.tight_layout()
-        # pyplot.savefig(save_to + 'regression_t={:.3e}.pdf'.format(t))
-        # pyplot.close()
-    pyplot.show()
+        pyplot.savefig(save_to + 'regression_t={:.1e}.pdf'.format(t))
+        pyplot.close()
+    # pyplot.show()
 
 
 def train_with_missing_dilutions(X, Y, threshold=1e7, save_to=save_to):
+
+    data = pandas.concat([Y, X], axis=1)
+    data = data[data['spiked_in'] < threshold]
 
     results = {'n_dilutions': [], 'score': [], 'metric': []}
     for k in range(2, len(dilutions)):
@@ -177,9 +181,6 @@ def train_with_missing_dilutions(X, Y, threshold=1e7, save_to=save_to):
         for combination in dilutions_train:
 
             combination = [int(x) for x in combination]
-
-            data = pandas.concat([Y, X], axis=1)
-            data = data[data['spiked_in'] < threshold]
 
             df = data.loc[data['dilution'].isin(combination), :]
             X_train = df.iloc[:, 1:]
@@ -201,35 +202,120 @@ def train_with_missing_dilutions(X, Y, threshold=1e7, save_to=save_to):
             }
 
             scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
-            reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=3, n_jobs=-1)
+            reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=3, n_jobs=n_jobs)
 
             start = time.time()
             reg.fit(X_train, numpy.log(y_train).values.ravel())
             print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
             print(reg.best_params_)
 
-            r2 = pandas.DataFrame(reg.cv_results_).loc[reg.best_index_, 'mean_test_r2'].astype('float')
-            mse = -pandas.DataFrame(reg.cv_results_).loc[reg.best_index_, 'mean_test_mse'].astype('float')
+            predictions = numpy.exp(reg.predict(X_test))
+            r2 = r2_score(y_test, predictions)
+            mse = mean_squared_error(numpy.log(y_test), numpy.log(predictions))
             scores.append((r2, mse))
 
-        results['n_dilutions'].extend([k for x in scores])
-        results['score'].extend([x[0] for x in scores])
-        results['metric'].extend(['R2' for x in scores])
+        best = sorted(scores, key=lambda x: x[0])[-5:]
+        results['n_dilutions'].extend([k for x in best])
+        results['score'].extend([x[0] for x in best])
+        results['metric'].extend(['R2' for x in best])
 
-        results['n_dilutions'].extend([k for x in scores])
-        results['score'].extend([x[1] for x in scores])
-        results['metric'].extend(['MSE' for x in scores])
+        best = sorted(scores, key=lambda x: x[1])[:5]
+        results['n_dilutions'].extend([k for x in best])
+        results['score'].extend([x[1] for x in best])
+        results['metric'].extend(['MSE' for x in best])
 
     df = pandas.DataFrame(results)
 
     seaborn.boxplot(x='n_dilutions', y='score', data=df[df['metric'] == 'R2'])
     pyplot.title('R2 scores')
-    pyplot.savefig(save_to + 'missing_dilutions_r2.pdf')
+    pyplot.savefig(save_to + 'missing_dilutions_r2_t={:.1e}.pdf'.format(threshold))
     pyplot.close()
 
     seaborn.boxplot(x='n_dilutions', y='score', data=df[df['metric'] == 'MSE'])
-    pyplot.title('MSE scores')
-    pyplot.savefig(save_to + 'missing_dilutions_mse.pdf')
+    pyplot.title('MSE(log) scores')
+    pyplot.savefig(save_to + 'missing_dilutions_mse_t={:.1e}.pdf'.format(threshold))
+    pyplot.close()
+
+
+def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, save_to=save_to):
+
+    data = pandas.concat([Y, X], axis=1)
+    data = data[data['spiked_in'] < threshold]
+
+    if metabolite_group == 'aas':
+        metabolites = aas
+        data = data[data['compound_class_AA'] == 1]
+    elif metabolite_group == 'pps':
+        metabolites = pps
+        data = data[data['compound_class_PP'] == 1]
+    else:
+        raise NotImplementedError('Unknown metabolite group')
+
+    results = {'n_metabolites': [], 'score': [], 'metric': []}
+    for k in range(2, len(metabolites)):
+        # pick randomly k dilutions to train on
+        metabolites_train = list(itertools.combinations(metabolites, k))
+
+        scores = []
+        for combination in metabolites_train:
+
+            df = pandas.DataFrame()
+            for m in combination:
+                df = pandas.concat([df.reset_index(drop=True), data[data['compound_{}'.format(m)] == 1].reset_index(drop=True)])
+            X_train = df.iloc[:, 1:]
+            y_train = df.iloc[:, 0]
+
+            df = pandas.DataFrame()
+            for m in metabolites:
+                if m not in combination:
+                    df = pandas.concat([df.reset_index(drop=True), data[data['compound_{}'.format(m)] == 1].reset_index(drop=True)])
+            X_test = df.iloc[:, 1:]
+            y_test = df.iloc[:, 0]
+
+            pipeline = Pipeline([
+                ('scaler', StandardScaler()),
+                ('regressor', SVR())
+            ])
+
+            param_grid = {
+                'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
+                'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
+                'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
+            }
+
+            scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
+            reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=3, n_jobs=n_jobs)
+
+            start = time.time()
+            reg.fit(X_train, numpy.log(y_train).values.ravel())
+            print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
+            print(reg.best_params_)
+
+            predictions = numpy.exp(reg.predict(X_test))
+            r2 = r2_score(y_test, predictions)
+            mse = mean_squared_error(numpy.log(y_test), numpy.log(predictions))
+            scores.append((r2, mse))
+
+        best = sorted(scores, key=lambda x: x[0])[-5:]
+        results['n_metabolites'].extend([k for x in best])
+        results['score'].extend([x[0] for x in best])
+        results['metric'].extend(['R2' for x in best])
+
+        best = sorted(scores, key=lambda x: x[1])[:5]
+        results['n_metabolites'].extend([k for x in best])
+        results['score'].extend([x[1] for x in best])
+        results['metric'].extend(['MSE' for x in best])
+
+    df = pandas.DataFrame(results)
+
+    seaborn.boxplot(x='n_metabolites', y='score', data=df[df['metric'] == 'R2'])
+    pyplot.title('R2 scores')
+    pyplot.savefig(save_to + 'missing_{}_r2_t={:.1e}.pdf'.format(metabolite_group, threshold))
+    pyplot.close()
+
+    seaborn.boxplot(x='n_metabolites', y='score', data=df[df['metric'] == 'MSE'])
+    pyplot.title('MSE(log) scores')
+    pyplot.savefig(save_to + 'missing_{}_mse_t={:.1e}.pdf'.format(metabolite_group, threshold))
     pyplot.close()
 
 
@@ -240,10 +326,10 @@ if __name__ == '__main__':
     normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], aas)
 
     X, Y = assemble_dataset(normalized_pp, normalized_aa)
-    # train_baseline_model(X,Y)  # train and test on the entire dataset
-    train_with_missing_dilutions(X,Y)  # train to predict intensities for missing dilutions
-
-
+    train_baseline_model(X,Y)  # train and test on the entire dataset
+    train_with_missing_dilutions(X,Y, threshold=1.1e6)  # train to predict intensities for missing dilutions
+    train_with_missing_metabolites(X,Y, metabolite_group='aas', threshold=1.1e6)  # train to predict intensities for missing amino acids
+    train_with_missing_metabolites(X,Y, metabolite_group='pps', threshold=1.1e6)  # train to predict intensities for missing purines / pyrimidines
 
 
 

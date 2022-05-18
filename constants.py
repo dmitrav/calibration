@@ -12,4 +12,5 @@ mz_dict = {k: v for k, v in zip(data['name'], data['mz'].astype('float'))}
 seed = 2022
 split_ratio = 0.8
 
+n_jobs = 8
 save_to = '/Users/andreidm/ETH/projects/calibration/res/'
