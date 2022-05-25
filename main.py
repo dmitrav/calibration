@@ -12,9 +12,10 @@ from matplotlib import pyplot
 from constants import dilutions, aas, pps, mz_dict
 from constants import seed, split_ratio
 from constants import save_to, n_jobs
+from constants import normalized_pp_metabolites, normalized_pp_outliers
 
 
-def get_data(path, sample_codes, metabolites):
+def get_data(path, sample_codes, metabolites=None):
 
     data = pandas.read_csv(path, index_col=0).T.sort_index()
 
@@ -23,22 +24,30 @@ def get_data(path, sample_codes, metabolites):
         if str(name).split('_')[2] in dilutions and '_'.join(str(name).split('_')[:2]) in sample_codes:
             samples.append(name)
 
-    data = data.loc[samples, metabolites]
+    if metabolites:
+        data = data.loc[samples, metabolites]
+    else:
+        data = data.loc[samples, :]
+
     data['sample'] = ['_'.join(x.split('_')[:2]) for x in samples]
     data['dilution'] = [x.split('_')[2] for x in samples]
 
     return data
 
 
-def plot_dilutions(data, metabolites):
+def plot_dilutions(data, metabolites=None):
+
+    if not metabolites:
+        metabolites = [str(x) for x in data.columns[:-2]]
 
     for m in metabolites:
-        g = seaborn.FacetGrid(data, col="sample", col_wrap=2, aspect=1.25)
+        print(m)
+        g = seaborn.FacetGrid(data, col="sample", col_wrap=3, aspect=1.25)
         g.map(seaborn.boxplot, "dilution", m, order=['0001', '0002', '0004', '0008', '0016', '0032', '0064'])
         pyplot.tight_layout()
 
-    # pyplot.savefig(save_to + 'dilutions.pdf')
-    pyplot.show()
+        # pyplot.savefig(save_to + 'dilutions.pdf')
+        pyplot.show()
 
 
 def assemble_dataset(pp_data, aa_data):
@@ -321,17 +330,29 @@ def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, 
 
 if __name__ == '__main__':
 
-    path = '/Users/andreidm/ETH/projects/normalization/res/SRM_v7/6b8943e1/normalized_6b8943e1.csv'
-    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], pps)
-    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], aas)
+    # path = '/Users/andreidm/ETH/projects/normalization/res/SRM_v7/6b8943e1/normalized_6b8943e1.csv'
+    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_normalized_2b632f6b.csv'
+    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'])
+    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'])
 
-    X, Y = assemble_dataset(normalized_pp, normalized_aa)
-    train_baseline_model(X,Y)  # train and test on the entire dataset
-    train_with_missing_dilutions(X,Y, threshold=1.1e6)  # train to predict intensities for missing dilutions
-    train_with_missing_metabolites(X,Y, metabolite_group='aas', threshold=1.1e6)  # train to predict intensities for missing amino acids
-    train_with_missing_metabolites(X,Y, metabolite_group='pps', threshold=1.1e6)  # train to predict intensities for missing purines / pyrimidines
+    path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
+    initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'])
+    initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'])
 
+    plot_dilutions(initial_pp)
+    plot_dilutions(initial_aa)
 
+    # X, Y = assemble_dataset(normalized_pp, normalized_aa)
+    # train_baseline_model(X,Y)  # train and test on the entire dataset
+    # train_with_missing_dilutions(X,Y, threshold=1.1e6)  # train to predict intensities for missing dilutions
+    # train_with_missing_metabolites(X,Y, metabolite_group='aas', threshold=1.1e6)  # train to predict intensities for missing amino acids
+    # train_with_missing_metabolites(X,Y, metabolite_group='pps', threshold=1.1e6)  # train to predict intensities for missing purines / pyrimidines
+
+    # TODO:
+    #  1. Repeat everything with the best normalization approach
+    #  and compare results for waveICA and ComBat (as a sanity check)
+    #  2. Proceed to the idea of using other metabolites as well (not aas / pps)
+    #  3. Save particular cases (combinations of dilutions / metabolites) of the best scores
 
 
 
