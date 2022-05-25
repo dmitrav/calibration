@@ -19,6 +19,7 @@ from constants import normalized_pp_metabolites, normalized_aa_metabolites
 def get_data(path, sample_codes, metabolites=None):
 
     data = pandas.read_csv(path, index_col=0).T.sort_index()
+    data[data < 0] = 1
 
     samples = []
     for name in data.index:
@@ -124,7 +125,7 @@ def get_compounds_classes(features):
 
 
 def train_baseline_model(X, Y,
-                         outlier_thresholds=(2e6, 1e7),  # (best scores, all data points)
+                         outlier_thresholds=(2e6, 1e7),  # (best scores, all data points) for RALPS
                          split_ratio=split_ratio,
                          random_seed=seed,
                          save_to=save_to,
@@ -183,7 +184,7 @@ def train_baseline_model(X, Y,
     # pyplot.show()
 
 
-def train_with_missing_dilutions(X, Y, threshold=1e7, save_to=save_to):
+def train_with_missing_dilutions(X, Y, threshold=1e7, save_to=save_to, plot_id=''):
 
     data = pandas.concat([Y, X], axis=1)
     data = data[data['spiked_in'] < threshold]
@@ -242,18 +243,21 @@ def train_with_missing_dilutions(X, Y, threshold=1e7, save_to=save_to):
 
     df = pandas.DataFrame(results)
 
+    if not os.path.exists(save_to):
+        os.makedirs(save_to)
+
     seaborn.boxplot(x='n_dilutions', y='score', data=df[df['metric'] == 'R2'])
     pyplot.title('R2 scores')
-    pyplot.savefig(save_to + 'missing_dilutions_r2_t={:.1e}.pdf'.format(threshold))
+    pyplot.savefig(save_to + 'missing_dilutions_r2_t={:.1e}{}.pdf'.format(threshold, plot_id))
     pyplot.close()
 
     seaborn.boxplot(x='n_dilutions', y='score', data=df[df['metric'] == 'MSE'])
     pyplot.title('MSE(log) scores')
-    pyplot.savefig(save_to + 'missing_dilutions_mse_t={:.1e}.pdf'.format(threshold))
+    pyplot.savefig(save_to + 'missing_dilutions_mse_t={:.1e}{}.pdf'.format(threshold, plot_id))
     pyplot.close()
 
 
-def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, save_to=save_to):
+def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, plot_id='', save_to=save_to):
 
     data = pandas.concat([Y, X], axis=1)
     data = data[data['spiked_in'] < threshold]
@@ -324,14 +328,17 @@ def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, 
 
     df = pandas.DataFrame(results)
 
+    if not os.path.exists(save_to):
+        os.makedirs(save_to)
+
     seaborn.boxplot(x='n_metabolites', y='score', data=df[df['metric'] == 'R2'])
     pyplot.title('R2 scores')
-    pyplot.savefig(save_to + 'missing_{}_r2_t={:.1e}.pdf'.format(metabolite_group, threshold))
+    pyplot.savefig(save_to + 'missing_{}_r2_t={:.1e}_{}.pdf'.format(metabolite_group, threshold, plot_id))
     pyplot.close()
 
     seaborn.boxplot(x='n_metabolites', y='score', data=df[df['metric'] == 'MSE'])
     pyplot.title('MSE(log) scores')
-    pyplot.savefig(save_to + 'missing_{}_mse_t={:.1e}.pdf'.format(metabolite_group, threshold))
+    pyplot.savefig(save_to + 'missing_{}_mse_t={:.1e}{}.pdf'.format(metabolite_group, threshold, plot_id))
     pyplot.close()
 
 
@@ -343,7 +350,13 @@ if __name__ == '__main__':
     initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
     X, Y = assemble_dataset(initial_pp, initial_aa)
     print('training for the initial data')
-    train_baseline_model(X, Y, plot_id='_initial', save_to=save_to+'baseline/')  # train and test on the entire dataset
+    # train_baseline_model(X, Y, plot_id='_initial', save_to=save_to+'baseline/')
+    train_with_missing_dilutions(X, Y, threshold=2e6, plot_id='_initial', save_to=save_to + 'missing_dilutions/')
+    train_with_missing_dilutions(X, Y, threshold=1e7, plot_id='_initial', save_to=save_to + 'missing_dilutions/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=2e6, plot_id='_initial', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, plot_id='_initial', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=2e6, plot_id='_initial', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=1e7, plot_id='_initial', save_to=save_to + 'missing_metabolites/')
 
     # RALPS
     path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_normalized_2b632f6b.csv'
@@ -351,7 +364,13 @@ if __name__ == '__main__':
     normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
     X, Y = assemble_dataset(normalized_pp, normalized_aa)
     print('training for the normalized data')
-    train_baseline_model(X, Y, plot_id='_ralps', save_to=save_to+'baseline/')  # train and test on the entire dataset
+    # train_baseline_model(X, Y, plot_id='_ralps', save_to=save_to+'baseline/')
+    train_with_missing_dilutions(X, Y, threshold=2e6, plot_id='_ralps', save_to=save_to + 'missing_dilutions/')
+    train_with_missing_dilutions(X, Y, threshold=1e7, plot_id='_ralps', save_to=save_to + 'missing_dilutions/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=2e6, plot_id='_ralps', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, plot_id='_ralps', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=2e6, plot_id='_ralps', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=1e7, plot_id='_ralps', save_to=save_to + 'missing_metabolites/')
 
     # WAVEICA
     path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_other_methods/waveICA1.csv'
@@ -359,7 +378,16 @@ if __name__ == '__main__':
     normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
     X, Y = assemble_dataset(normalized_pp, normalized_aa)
     print('training for the normalized data')
-    train_baseline_model(X, Y, plot_id='_waceica', save_to=save_to+'baseline/')  # train and test on the entire dataset
+    # train_baseline_model(X, Y, outlier_thresholds=[1e6, 2e6, 3e6, 4e6, 5e6], plot_id='_waceica', save_to=save_to+'baseline/')
+    train_with_missing_dilutions(X, Y, threshold=2e6, plot_id='_waveica', save_to=save_to + 'missing_dilutions/')
+    train_with_missing_dilutions(X, Y, threshold=3e6, plot_id='_waveica', save_to=save_to + 'missing_dilutions/')
+    train_with_missing_dilutions(X, Y, threshold=1e7, plot_id='_waveica', save_to=save_to + 'missing_dilutions/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=2e6, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=3e6, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=2e6, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=3e6, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=1e7, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
 
     # COMBAT
     path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_other_methods/combat1.csv'
@@ -367,15 +395,15 @@ if __name__ == '__main__':
     normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
     X, Y = assemble_dataset(normalized_pp, normalized_aa)
     print('training for the normalized data')
-    train_baseline_model(X, Y, plot_id='_combat', save_to=save_to+'baseline/')  # train and test on the entire dataset
-
-    # train_with_missing_dilutions(X,Y, threshold=2e6)  # train to predict intensities for missing dilutions
-    # train_with_missing_metabolites(X,Y, metabolite_group='aas', threshold=1.1e6)  # train to predict intensities for missing amino acids
-    # train_with_missing_metabolites(X,Y, metabolite_group='pps', threshold=1.1e6)  # train to predict intensities for missing purines / pyrimidines
+    # train_baseline_model(X, Y, plot_id='_combat', save_to=save_to+'baseline/')
+    train_with_missing_dilutions(X, Y, threshold=2e6, plot_id='_combat', save_to=save_to+'missing_dilutions/')
+    train_with_missing_dilutions(X, Y, threshold=1e7, plot_id='_combat', save_to=save_to+'missing_dilutions/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=2e6, plot_id='_combat', save_to=save_to+'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, plot_id='_combat', save_to=save_to+'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=2e6, plot_id='_combat', save_to=save_to+'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=1e7, plot_id='_combat', save_to=save_to+'missing_metabolites/')
 
     # TODO:
-    #  1. Repeat everything with the best normalization approach
-    #  and compare results for waveICA and ComBat (as a sanity check)
     #  3. Save particular cases (combinations of dilutions / metabolites) of the best scores
     #  2. Proceed to the idea of using other metabolites as well (not aas / pps)
 
