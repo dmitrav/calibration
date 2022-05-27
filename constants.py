@@ -7,7 +7,7 @@ seed = 2022
 split_ratio = 0.8
 
 n_jobs = -1
-save_to = '/Users/andreidm/ETH/projects/calibration/res/'
+save_to = '/Users/andreidm/ETH/projects/calibration/res/plots/dilutions/'
 
 # DATA
 dilutions = ['0001', '0002', '0004', '0008', '0016', '0032', '0064']

@@ -13,7 +13,7 @@ from matplotlib import pyplot
 from constants import dilutions, aas, pps, mz_dict
 from constants import seed, split_ratio
 from constants import save_to, n_jobs
-from constants import normalized_pp_metabolites, normalized_aa_metabolites
+from constants import normalized_pp_metabolites, normalized_aa_metabolites, initial_aa_outliers, initial_pp_outliers
 
 
 def get_data(path, sample_codes, metabolites=None):
@@ -37,7 +37,7 @@ def get_data(path, sample_codes, metabolites=None):
     return data
 
 
-def plot_dilutions(data, metabolites=None):
+def plot_dilutions(data, metabolites=None, plot_name=''):
 
     if not metabolites:
         metabolites = [str(x) for x in data.columns[:-2]]
@@ -48,8 +48,8 @@ def plot_dilutions(data, metabolites=None):
         g.map(seaborn.boxplot, "dilution", m, order=['0001', '0002', '0004', '0008', '0016', '0032', '0064'])
         pyplot.tight_layout()
 
-        # pyplot.savefig(save_to + 'dilutions.pdf')
-        pyplot.show()
+        pyplot.savefig(save_to + '{}_dilutions_{}.pdf'.format(m, plot_name))
+        # pyplot.show()
 
 
 def assemble_dataset(pp_data, aa_data):
@@ -429,6 +429,33 @@ def plot_svm_results(data, threshold, group_id):
     pyplot.legend(bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0)
     pyplot.tight_layout()
     pyplot.savefig(save_to + 'plots/{}_mse_t={:.1e}.pdf'.format(group_id, threshold))
+
+
+def plot_dilution_series_for_metabolites():
+
+    # select examples of metabolites
+    metabolites_aa = [aas[0]]
+    metaboolites_pp = [pps[-2]]
+    outliers_aa = random.sample(initial_aa_outliers, 3)
+    outliers_pp = random.sample(initial_pp_outliers, 3)
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
+    initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=[*metabolites_aa, *metaboolites_pp, *outliers_aa, *outliers_pp])
+    initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=[*metabolites_aa, *metaboolites_pp, *outliers_aa, *outliers_pp])
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_normalized_2b632f6b.csv'
+    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=[*metabolites_aa, *metaboolites_pp, *outliers_aa, *outliers_pp])
+    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=[*metabolites_aa, *metaboolites_pp, *outliers_aa, *outliers_pp])
+
+    plot_dilutions(initial_aa, metabolites_aa, plot_name='AA_initial')
+    plot_dilutions(normalized_aa, metabolites_aa, plot_name='AA_normalized')
+    plot_dilutions(initial_pp, metaboolites_pp, plot_name='PP_initial')
+    plot_dilutions(normalized_pp, metaboolites_pp, plot_name='PP_normalized')
+
+    plot_dilutions(initial_aa, outliers_aa, plot_name='AA_outliers_initial')
+    plot_dilutions(normalized_aa, outliers_aa, plot_name='AA_outliers_normalized')
+    plot_dilutions(initial_pp, outliers_pp, plot_name='PP_outliers_initial')
+    plot_dilutions(normalized_pp, outliers_pp, plot_name='PP_outliers_normalized')
 
 
 if __name__ == '__main__':
