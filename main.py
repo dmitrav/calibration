@@ -3,12 +3,13 @@ import os.path
 import pandas, seaborn, random, time, numpy, seaborn, itertools
 from matplotlib import pyplot
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-from sklearn.linear_model import Lasso, Ridge, ElasticNet
+from sklearn.linear_model import Lasso, Ridge, ElasticNet, LinearRegression
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.metrics import r2_score, mean_squared_error, make_scorer
 from sklearn.svm import SVR
 from matplotlib import pyplot
+from tqdm import tqdm
 
 from constants import dilutions, aas, pps, mz_dict
 from constants import seed, split_ratio
@@ -48,8 +49,8 @@ def plot_dilutions(data, metabolites=None, plot_name=''):
         g.map(seaborn.boxplot, "dilution", m, order=['0001', '0002', '0004', '0008', '0016', '0032', '0064'])
         pyplot.tight_layout()
 
-        pyplot.savefig(save_to + '{}_dilutions_{}.pdf'.format(m, plot_name))
-        # pyplot.show()
+        # pyplot.savefig(save_to + '{}_dilutions_{}.pdf'.format(m, plot_name))
+        pyplot.show()
 
 
 def assemble_dataset(pp_data, aa_data):
@@ -458,19 +459,102 @@ def plot_dilution_series_for_metabolites():
     plot_dilutions(normalized_pp, outliers_pp, plot_name='PP_outliers_normalized')
 
 
+def compute_percent_of_increasing_trends(data, sample_types):
+
+    count = 0
+    dilutions = list(data['dilution'].unique())
+    metabolites = list(data.columns[:-2])
+    for metabolite in metabolites:
+
+        for sample in sample_types:
+
+            subset = data[data['sample'] == sample]
+            x = []
+            y = []
+            for dilution in dilutions:
+
+                values = subset.loc[subset['dilution'] == dilution, metabolite]
+                values = values[values > 1]
+                if len(values) > 1:
+
+                    q1 = numpy.percentile(values, 25)
+                    q3 = numpy.percentile(values, 75)
+                    iqr = q3 - q1
+                    values = values[(values < q3 + 1.5 * iqr) & (values > q1 - 1.5 * iqr)]
+                    x.append(int(dilution))
+                    y.append(values.median())
+
+            x = numpy.array(x).reshape(-1, 1)
+            y = numpy.log2(y)
+
+            if len(x) > 1 and len(y) > 1:
+                model = LinearRegression().fit(x, y)
+                coef = model.coef_[0]
+                if round(coef, 3) >= 0.001:
+                    count += 1
+
+    print('{}% of metabolites show increasing dilution trends'.format(round(int(count / len(sample_types)) / 170 * 100, 1)))
+
+
+def evaluate_increasing_dilution_trends():
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
+    sample_types = ['P1_AA', 'P2_SAA']
+    normalized_aa = get_data(path, sample_types, metabolites=None)
+    print('Analyzing', sample_types, 'for initial data')
+    compute_percent_of_increasing_trends(normalized_aa, sample_types)
+
+    sample_types = ['P1_PP', 'P2_SPP']
+    normalized_pp = get_data(path, sample_types, metabolites=None)
+    print('Analyzing', sample_types, 'for initial data')
+    compute_percent_of_increasing_trends(normalized_pp, sample_types)
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_normalized_2b632f6b.csv'
+    sample_types = ['P1_AA', 'P2_SAA']
+    normalized_aa = get_data(path, sample_types, metabolites=None)
+    print('Analyzing', sample_types, 'for RALPS')
+    compute_percent_of_increasing_trends(normalized_aa, sample_types)
+
+    sample_types = ['P1_PP', 'P2_SPP']
+    normalized_pp = get_data(path, sample_types, metabolites=None)
+    print('Analyzing', sample_types, 'for RALPS')
+    compute_percent_of_increasing_trends(normalized_pp, sample_types)
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_other_methods/combat1.csv'
+    sample_types = ['P1_AA', 'P2_SAA']
+    normalized_aa = get_data(path, sample_types, metabolites=None)
+    print('Analyzing', sample_types, 'for ComBat')
+    compute_percent_of_increasing_trends(normalized_aa, sample_types)
+
+    sample_types = ['P1_PP', 'P2_SPP']
+    normalized_pp = get_data(path, sample_types, metabolites=None)
+    print('Analyzing', sample_types, 'for ComBat')
+    compute_percent_of_increasing_trends(normalized_pp, sample_types)
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_other_methods/waveICA1.csv'
+    sample_types = ['P1_AA', 'P2_SAA']
+    normalized_aa = get_data(path, sample_types, metabolites=None)
+    print('Analyzing', sample_types, 'for WaveICA')
+    compute_percent_of_increasing_trends(normalized_aa, sample_types)
+
+    sample_types = ['P1_PP', 'P2_SPP']
+    normalized_pp = get_data(path, sample_types, metabolites=None)
+    print('Analyzing', sample_types, 'for WaveICA')
+    compute_percent_of_increasing_trends(normalized_pp, sample_types)
+
+
 if __name__ == '__main__':
 
-    results = pandas.read_csv('/Users/andreidm/ETH/projects/calibration/res/svm_results.csv', index_col=0)
-
-    dilutions = results[results['task'] == 'dilutions']
-    metabolites_aa = results[results['task'] == 'metabolites_aa']
-    metabolites_pp = results[results['task'] == 'metabolites_pp']
-
-    plot_svm_results(dilutions, 1e7, 'dilutions')
-    plot_svm_results(metabolites_pp, 1e7, 'PP')
-    plot_svm_results(metabolites_aa, 1e7, 'AA')
-
     # TODO: implement the idea of using other metabolites as well (not aas / pps)
+
+    results = pandas.read_csv('/Users/andreidm/ETH/projects/calibration/res/increasing_dilutions.csv', index_col=0)
+    seaborn.set_theme(style='whitegrid')
+    seaborn.barplot(data=results, x='sample', y='percent', hue='method')
+    pyplot.title('Increasing dilution trends')
+    pyplot.ylabel('percent of metabolites')
+    pyplot.legend(bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0)
+    pyplot.tight_layout()
+    pyplot.savefig(save_to + 'plots/increasing_dilutions.pdf')
 
 
 
