@@ -200,33 +200,36 @@ def train_with_missing_dilutions(X, Y, threshold=1e7, save_to=save_to, plot_id='
 
             combination = [int(x) for x in combination]
 
-            df = data.loc[data['dilution'].isin(combination), :]
-            X_train = df.iloc[:, 1:]
-            y_train = df.iloc[:, 0]
+            if combination not in []:
 
-            df = data.loc[~data['dilution'].isin(combination), :]
-            X_test = df.iloc[:, 1:]
-            y_test = df.iloc[:, 0]
+                df = data.loc[data['dilution'].isin(combination), :]
+                X_train = df.iloc[:, 1:]
+                y_train = df.iloc[:, 0]
 
-            pipeline = Pipeline([
-                ('scaler', StandardScaler()),
-                ('regressor', SVR())
-            ])
+                df = data.loc[~data['dilution'].isin(combination), :]
+                X_test = df.iloc[:, 1:]
+                y_test = df.iloc[:, 0]
 
-            param_grid = {
-                'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
-                'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
-                'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
-            }
+                pipeline = Pipeline([
+                    ('scaler', StandardScaler()),
+                    ('regressor', SVR())
+                ])
 
-            scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
-            reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=3, n_jobs=n_jobs)
-            reg.fit(X_train, numpy.log(y_train).values.ravel())
+                param_grid = {
+                    'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
+                    'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
+                    'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
+                }
 
-            predictions = numpy.exp(reg.predict(X_test))
-            r2 = r2_score(y_test, predictions)
-            mse = mean_squared_error(numpy.log(y_test), numpy.log(predictions))
-            scores.append((r2, mse, reg.best_params_, combination))
+                reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring='r2', cv=3, n_jobs=n_jobs)
+
+                print('for combination {}'.format(combination))
+                reg.fit(X_train, numpy.log(y_train).values.ravel())
+
+                predictions = numpy.exp(reg.predict(X_test))
+                r2 = r2_score(y_test, predictions)
+                mse = mean_squared_error(numpy.log(y_test), numpy.log(predictions))
+                scores.append((r2, mse, reg.best_params_, combination))
 
         print('best scores for {} dilutions:'.format(k))
         best = sorted(scores, key=lambda x: x[0])[-1]
@@ -308,9 +311,7 @@ def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, 
                 'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
             }
 
-            scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
-            reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=3, n_jobs=n_jobs)
-
+            reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring='r2', cv=3, n_jobs=n_jobs)
             reg.fit(X_train, numpy.log(y_train).values.ravel())
 
             predictions = numpy.exp(reg.predict(X_test))
@@ -318,7 +319,7 @@ def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, 
             mse = mean_squared_error(numpy.log(y_test), numpy.log(predictions))
             scores.append((r2, mse, reg.best_params_, combination))
 
-        print('best scores for {} dilutions:'.format(k))
+        print('best scores for {} metabolites:'.format(k))
         best = sorted(scores, key=lambda x: x[0])[-1]
         results['n_metabolites'].append(k)
         results['score'].append(best[0])
@@ -350,7 +351,7 @@ def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, 
     pyplot.close()
 
 
-if __name__ == '__main__':
+def train_models_for_target_metabolites():
 
     # INITIAL DATA
     path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
@@ -358,7 +359,7 @@ if __name__ == '__main__':
     initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
     X, Y = assemble_dataset(initial_pp, initial_aa)
     print('training for the initial data\n')
-    # train_baseline_model(X, Y, plot_id='_initial', save_to=save_to+'baseline/')
+    train_baseline_model(X, Y, plot_id='_initial', save_to=save_to + 'baseline/')
     train_with_missing_dilutions(X, Y, threshold=2e6, plot_id='_initial', save_to=save_to + 'missing_dilutions/')
     train_with_missing_dilutions(X, Y, threshold=1e7, plot_id='_initial', save_to=save_to + 'missing_dilutions/')
     train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=2e6, plot_id='_initial', save_to=save_to + 'missing_metabolites/')
@@ -372,7 +373,7 @@ if __name__ == '__main__':
     normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
     X, Y = assemble_dataset(normalized_pp, normalized_aa)
     print('training for the normalized data (RALPS)\n')
-    # train_baseline_model(X, Y, plot_id='_ralps', save_to=save_to+'baseline/')
+    train_baseline_model(X, Y, plot_id='_ralps', save_to=save_to + 'baseline/')
     train_with_missing_dilutions(X, Y, threshold=2e6, plot_id='_ralps', save_to=save_to + 'missing_dilutions/')
     train_with_missing_dilutions(X, Y, threshold=1e7, plot_id='_ralps', save_to=save_to + 'missing_dilutions/')
     train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=2e6, plot_id='_ralps', save_to=save_to + 'missing_metabolites/')
@@ -386,15 +387,12 @@ if __name__ == '__main__':
     normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
     X, Y = assemble_dataset(normalized_pp, normalized_aa)
     print('training for the normalized data (WaveICA)\n')
-    # train_baseline_model(X, Y, outlier_thresholds=[1e6, 2e6, 3e6, 4e6, 5e6], plot_id='_waceica', save_to=save_to+'baseline/')
+    train_baseline_model(X, Y, outlier_thresholds=[1e6, 2e6, 3e6, 4e6, 5e6], plot_id='_waceica', save_to=save_to + 'baseline/')
     train_with_missing_dilutions(X, Y, threshold=2e6, plot_id='_waveica', save_to=save_to + 'missing_dilutions/')
-    train_with_missing_dilutions(X, Y, threshold=3e6, plot_id='_waveica', save_to=save_to + 'missing_dilutions/')
     train_with_missing_dilutions(X, Y, threshold=1e7, plot_id='_waveica', save_to=save_to + 'missing_dilutions/')
     train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=2e6, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
-    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=3e6, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
     train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
     train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=2e6, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
-    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=3e6, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
     train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=1e7, plot_id='_waveica', save_to=save_to + 'missing_metabolites/')
 
     # COMBAT
@@ -403,17 +401,49 @@ if __name__ == '__main__':
     normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
     X, Y = assemble_dataset(normalized_pp, normalized_aa)
     print('training for the normalized data (ComBat)\n')
-    # train_baseline_model(X, Y, plot_id='_combat', save_to=save_to+'baseline/')
-    train_with_missing_dilutions(X, Y, threshold=2e6, plot_id='_combat', save_to=save_to+'missing_dilutions/')
-    train_with_missing_dilutions(X, Y, threshold=1e7, plot_id='_combat', save_to=save_to+'missing_dilutions/')
-    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=2e6, plot_id='_combat', save_to=save_to+'missing_metabolites/')
-    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, plot_id='_combat', save_to=save_to+'missing_metabolites/')
-    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=2e6, plot_id='_combat', save_to=save_to+'missing_metabolites/')
-    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=1e7, plot_id='_combat', save_to=save_to+'missing_metabolites/')
+    train_baseline_model(X, Y, plot_id='_combat', save_to=save_to + 'baseline/')
+    train_with_missing_dilutions(X, Y, threshold=2e6, plot_id='_combat', save_to=save_to + 'missing_dilutions/')
+    train_with_missing_dilutions(X, Y, threshold=1e7, plot_id='_combat', save_to=save_to + 'missing_dilutions/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=2e6, plot_id='_combat', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, plot_id='_combat', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=2e6, plot_id='_combat', save_to=save_to + 'missing_metabolites/')
+    train_with_missing_metabolites(X, Y, metabolite_group='pps', threshold=1e7, plot_id='_combat', save_to=save_to + 'missing_metabolites/')
 
-    # TODO:
-    #  3. Save particular cases (combinations of dilutions / metabolites) of the best scores
-    #  2. Proceed to the idea of using other metabolites as well (not aas / pps)
+
+def plot_svm_results(data, threshold, group_id):
+
+    seaborn.set_theme(style='whitegrid')
+
+    pyplot.figure()
+    seaborn.barplot(x='n_groups', y='value', hue='method',
+                    data=data[(data['threshold'] == threshold) & (data['metric'] == 'R2')])
+    pyplot.title('R2 for predicting {}'.format(group_id), fontweight='bold')
+    pyplot.legend(bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0)
+    pyplot.tight_layout()
+    pyplot.savefig(save_to + 'plots/{}_r2_t={:.1e}.pdf'.format(group_id, threshold))
+
+    pyplot.figure()
+    seaborn.barplot(x='n_groups', y='value', hue='method',
+                    data=data[(data['threshold'] == threshold) & (data['metric'] == 'MSE')])
+    pyplot.title('MSE for predicting {}'.format(group_id), fontweight='bold')
+    pyplot.legend(bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0)
+    pyplot.tight_layout()
+    pyplot.savefig(save_to + 'plots/{}_mse_t={:.1e}.pdf'.format(group_id, threshold))
+
+
+if __name__ == '__main__':
+
+    results = pandas.read_csv('/Users/andreidm/ETH/projects/calibration/res/svm_results.csv', index_col=0)
+
+    dilutions = results[results['task'] == 'dilutions']
+    metabolites_aa = results[results['task'] == 'metabolites_aa']
+    metabolites_pp = results[results['task'] == 'metabolites_pp']
+
+    plot_svm_results(dilutions, 1e7, 'dilutions')
+    plot_svm_results(metabolites_pp, 1e7, 'PP')
+    plot_svm_results(metabolites_aa, 1e7, 'AA')
+
+    # TODO: implement the idea of using other metabolites as well (not aas / pps)
 
 
 
