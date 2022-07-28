@@ -543,9 +543,7 @@ def evaluate_increasing_dilution_trends():
     compute_percent_of_increasing_trends(normalized_pp, sample_types)
 
 
-if __name__ == '__main__':
-
-    # TODO: implement the idea of using other metabolites as well (not aas / pps)
+def compare_dilutions_trends_for_methods():
 
     results = pandas.read_csv('/Users/andreidm/ETH/projects/calibration/res/increasing_dilutions.csv', index_col=0)
     seaborn.set_theme(style='whitegrid')
@@ -554,8 +552,36 @@ if __name__ == '__main__':
     pyplot.ylabel('percent of metabolites')
     pyplot.legend(bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0)
     pyplot.tight_layout()
-    pyplot.savefig(save_to + 'plots/increasing_dilutions.pdf')
+    pyplot.show()
 
+
+if __name__ == '__main__':
+
+    # TODO: implement the idea of using other metabolites as well (not aas / pps)
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
+    initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=None)
+    initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=None)
+    batch = [x.split('_')[3] for x in initial_aa.index]
+    initial_aa['batch'] = batch
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_normalized_2b632f6b.csv'
+    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=None)
+    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=None)
+    batch = [x.split('_')[3] for x in normalized_aa.index]
+    normalized_aa['batch'] = batch
+
+    random_metabolites = random.sample(aas, 3)
+
+    for bid in initial_aa['batch'].unique():
+        print('batch', bid)
+        print('initial')
+        data_batch = initial_aa[initial_aa['batch'] == bid]
+        plot_dilutions(data_batch, random_metabolites)
+        print('normalized')
+        data_batch = normalized_aa[normalized_aa['batch'] == bid]
+        plot_dilutions(data_batch, random_metabolites)
+        print()
 
 
 
