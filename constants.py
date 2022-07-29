@@ -14,6 +14,27 @@ dilutions = ['0001', '0002', '0004', '0008', '0016', '0032', '0064']
 aas = ['Proline', 'Asparagine', 'Lysine', 'Phenylalanine', 'Tyrosine']
 pps = ['Cytosine', 'Uracil', 'Thymine', 'Adenine']
 
+
+def parse_batch_label(sample_name):
+
+    if '_0108_' in sample_name:
+        return 0
+    elif '_0110_' in sample_name:
+        return 1
+    elif '_0124_' in sample_name:
+        return 2
+    elif '_0219_' in sample_name:
+        return 3
+    elif '_0221_' in sample_name:
+        return 4
+    elif '_0304_' in sample_name:
+        return 5
+    elif '_0306_' in sample_name:
+        return 6
+    else:
+        raise ValueError('Unknown batch id:', sample_name)
+
+
 normalized_pp_metabolites = [
     'Acetone', 'Acetatic acid', 'C3:0 (Propionic acid)', 'Hydrogen sulfite', 'Succinic aldehyde', 'Methylpyrazine',
     'Hydroxypyridine', 'Silicic acid', 'Furfural', 'Cyclohexenone', 'Phosphoric acid', 'Oxobutanoic acid',

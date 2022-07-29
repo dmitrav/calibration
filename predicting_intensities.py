@@ -555,9 +555,7 @@ def compare_dilutions_trends_for_methods():
     pyplot.show()
 
 
-if __name__ == '__main__':
-
-    # TODO: implement the idea of using other metabolites as well (not aas / pps)
+def plot_dilution_for_random_metabolites():
 
     path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
     initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=None)
@@ -582,10 +580,3 @@ if __name__ == '__main__':
         data_batch = normalized_aa[normalized_aa['batch'] == bid]
         plot_dilutions(data_batch, random_metabolites)
         print()
-
-
-
-
-
-
-
