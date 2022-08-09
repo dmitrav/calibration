@@ -127,8 +127,14 @@ def train_with_full_data(X, Y,
             ('regressor', SVR())
         ])
 
+        # param_grid = {
+        #     'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
+        #     'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
+        #     'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
+        # }
+
         param_grid = {
-            'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
+            'regressor__C': [0.01, 0.1, 1, 10, 100],
             'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
             'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
         }
@@ -402,54 +408,56 @@ def train_all_models():
     initial_pp = get_data(path, ['P1_PP', 'P2_SPP'], metabolites=pps)
     initial_aa = get_data(path, ['P1_AA', 'P2_SAA'], metabolites=aas)
     X, Y = assemble_dataset(initial_pp, initial_aa)
+    X = X.iloc[:, 1:]
     print('training for initial data\n')
-    train_with_full_data(X, Y, outlier_thresholds=[1e7], plot_id='initial', save_to=save_to + 'full/')
-    print('training for missing dilutions\n')
-    train_with_missing_dilutions(X, Y, plot_id='_initial', save_to=save_to + 'full_missing_dilutions/')
-    print('training for missing metabolites\n')
-    train_with_missing_metabolites(X, Y, metabolite_group='aas', plot_id='_initial', save_to=save_to + 'full_missing_metabolites/')
-    train_with_missing_metabolites(X, Y, metabolite_group='pps', plot_id='_initial', save_to=save_to + 'full_missing_metabolites/')
-    # this is clearly not working
-    train_with_water_only(X, Y, outlier_thresholds=[4.4e7], plot_id='_initial', save_to=save_to + 'water_only/')
+    train_with_full_data(X, Y, outlier_thresholds=[1e7], plot_id='initial_nowater', save_to=save_to + 'full/')
 
-    # RALPS
-    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_normalized_2b632f6b.csv'
-    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP'], metabolites=pps)
-    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA'], metabolites=aas)
-    X, Y = assemble_dataset(normalized_pp, normalized_aa)
-    print('training for the normalized data (RALPS)\n')
-    train_with_full_data(X, Y, outlier_thresholds=[1e7], plot_id='RALPS', save_to=save_to + 'full/')
-    print('training for missing dilutions\n')
-    train_with_missing_dilutions(X, Y, plot_id='RALPS', save_to=save_to + 'full_missing_dilutions/')
-    print('training for missing metabolites\n')
-    train_with_missing_metabolites(X, Y, metabolite_group='aas', plot_id='RALPS', save_to=save_to + 'full_missing_metabolites/')
-    train_with_missing_metabolites(X, Y, metabolite_group='pps', plot_id='RALPS', save_to=save_to + 'full_missing_metabolites/')
-
-    # WAVEICA
-    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_other_methods/waveICA1.csv'
-    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP'], metabolites=pps)
-    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA'], metabolites=aas)
-    X, Y = assemble_dataset(normalized_pp, normalized_aa)
-    print('training for the normalized data (WaveICA)\n')
-    train_with_full_data(X, Y, outlier_thresholds=[1.2e7], plot_id='WaveICA', save_to=save_to + 'full/')
-    print('training for missing dilutions\n')
-    train_with_missing_dilutions(X, Y, plot_id='WaveICA', save_to=save_to + 'full_missing_dilutions/')
-    print('training for missing metabolites\n')
-    train_with_missing_metabolites(X, Y, metabolite_group='aas', plot_id='WaveICA', save_to=save_to + 'full_missing_metabolites/')
-    train_with_missing_metabolites(X, Y, metabolite_group='pps', plot_id='WaveICA', save_to=save_to + 'full_missing_metabolites/')
-
-    # COMBAT
-    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_other_methods/combat1.csv'
-    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP'], metabolites=pps)
-    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA'], metabolites=aas)
-    X, Y = assemble_dataset(normalized_pp, normalized_aa)
-    print('training for the normalized data (ComBat)\n')
-    train_with_full_data(X, Y, outlier_thresholds=[1.2e7], plot_id='ComBat', save_to=save_to + 'full/')
-    print('training for missing dilutions\n')
-    train_with_missing_dilutions(X, Y, plot_id='ComBat', save_to=save_to + 'full_missing_dilutions/')
-    print('training for missing metabolites\n')
-    train_with_missing_metabolites(X, Y, metabolite_group='aas', plot_id='ComBat', save_to=save_to + 'full_missing_metabolites/')
-    train_with_missing_metabolites(X, Y, metabolite_group='pps', plot_id='ComBat', save_to=save_to + 'full_missing_metabolites/')
+    # print('training for missing dilutions\n')
+    # train_with_missing_dilutions(X, Y, plot_id='_initial', save_to=save_to + 'full_missing_dilutions/')
+    # print('training for missing metabolites\n')
+    # train_with_missing_metabolites(X, Y, metabolite_group='aas', plot_id='_initial', save_to=save_to + 'full_missing_metabolites/')
+    # train_with_missing_metabolites(X, Y, metabolite_group='pps', plot_id='_initial', save_to=save_to + 'full_missing_metabolites/')
+    # # this is clearly not working
+    # train_with_water_only(X, Y, outlier_thresholds=[4.4e7], plot_id='_initial', save_to=save_to + 'water_only/')
+    #
+    # # RALPS
+    # path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_normalized_2b632f6b.csv'
+    # normalized_pp = get_data(path, ['P1_PP', 'P2_SPP'], metabolites=pps)
+    # normalized_aa = get_data(path, ['P1_AA', 'P2_SAA'], metabolites=aas)
+    # X, Y = assemble_dataset(normalized_pp, normalized_aa)
+    # print('training for the normalized data (RALPS)\n')
+    # train_with_full_data(X, Y, outlier_thresholds=[1e7], plot_id='RALPS', save_to=save_to + 'full/')
+    # print('training for missing dilutions\n')
+    # train_with_missing_dilutions(X, Y, plot_id='RALPS', save_to=save_to + 'full_missing_dilutions/')
+    # print('training for missing metabolites\n')
+    # train_with_missing_metabolites(X, Y, metabolite_group='aas', plot_id='RALPS', save_to=save_to + 'full_missing_metabolites/')
+    # train_with_missing_metabolites(X, Y, metabolite_group='pps', plot_id='RALPS', save_to=save_to + 'full_missing_metabolites/')
+    #
+    # # WAVEICA
+    # path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_other_methods/waveICA1.csv'
+    # normalized_pp = get_data(path, ['P1_PP', 'P2_SPP'], metabolites=pps)
+    # normalized_aa = get_data(path, ['P1_AA', 'P2_SAA'], metabolites=aas)
+    # X, Y = assemble_dataset(normalized_pp, normalized_aa)
+    # print('training for the normalized data (WaveICA)\n')
+    # train_with_full_data(X, Y, outlier_thresholds=[1.2e7], plot_id='WaveICA', save_to=save_to + 'full/')
+    # print('training for missing dilutions\n')
+    # train_with_missing_dilutions(X, Y, plot_id='WaveICA', save_to=save_to + 'full_missing_dilutions/')
+    # print('training for missing metabolites\n')
+    # train_with_missing_metabolites(X, Y, metabolite_group='aas', plot_id='WaveICA', save_to=save_to + 'full_missing_metabolites/')
+    # train_with_missing_metabolites(X, Y, metabolite_group='pps', plot_id='WaveICA', save_to=save_to + 'full_missing_metabolites/')
+    #
+    # # COMBAT
+    # path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_other_methods/combat1.csv'
+    # normalized_pp = get_data(path, ['P1_PP', 'P2_SPP'], metabolites=pps)
+    # normalized_aa = get_data(path, ['P1_AA', 'P2_SAA'], metabolites=aas)
+    # X, Y = assemble_dataset(normalized_pp, normalized_aa)
+    # print('training for the normalized data (ComBat)\n')
+    # train_with_full_data(X, Y, outlier_thresholds=[1.2e7], plot_id='ComBat', save_to=save_to + 'full/')
+    # print('training for missing dilutions\n')
+    # train_with_missing_dilutions(X, Y, plot_id='ComBat', save_to=save_to + 'full_missing_dilutions/')
+    # print('training for missing metabolites\n')
+    # train_with_missing_metabolites(X, Y, metabolite_group='aas', plot_id='ComBat', save_to=save_to + 'full_missing_metabolites/')
+    # train_with_missing_metabolites(X, Y, metabolite_group='pps', plot_id='ComBat', save_to=save_to + 'full_missing_metabolites/')
 
 
 def plot_dilutions(data, metabolites=None, plot_name='', save_to='/Users/andreidm/ETH/projects/calibration/res/'):
@@ -470,7 +478,7 @@ def plot_dilutions(data, metabolites=None, plot_name='', save_to='/Users/andreid
         # pyplot.show()
 
 
-if __name__ == '__main__':
+def plot_dilutions_of_metabolite_groups():
 
     save_to = '/Users/andreidm/ETH/projects/calibration/res/predicting_dilutions/'
 
@@ -480,3 +488,8 @@ if __name__ == '__main__':
 
     plot_dilutions(initial_aa, aas, plot_name='AA_initial', save_to=save_to + 'dilutions/')
     plot_dilutions(initial_pp, pps, plot_name='PP_initial', save_to=save_to + 'dilutions/')
+
+
+if __name__ == '__main__':
+
+    train_all_models()
