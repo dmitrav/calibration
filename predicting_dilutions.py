@@ -127,14 +127,8 @@ def train_with_full_data(X, Y,
             ('regressor', SVR())
         ])
 
-        # param_grid = {
-        #     'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
-        #     'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
-        #     'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
-        # }
-
         param_grid = {
-            'regressor__C': [0.01, 0.1, 1, 10, 100],
+            'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
             'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
             'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
         }
@@ -254,10 +248,10 @@ def train_with_missing_dilutions(X, Y, save_to=save_to, plot_id=''):
 
             combination = [int(x) for x in combination]
 
-            # if combination not in [[1, 16, 32], [1, 32, 64], [2, 32, 64], [1, 4, 8, 16, 32, 64]]:  # initial
+            if combination not in [[1, 16, 32], [1, 32, 64], [2, 32, 64], [1, 4, 8, 16, 32, 64]]:  # initial
             # if combination not in [[8, 32, 64]]:  # RALPS
             # if combination not in [[1, 4, 8], [1, 4, 32], [2, 32, 64]]:  # WaveICA
-            if combination not in [[2, 16, 32], [2, 16, 64], [1, 4, 16, 64], [2, 8, 16, 32, 64]]:  # ComBat
+            # if combination not in [[2, 16, 32], [2, 16, 64], [1, 4, 16, 64], [2, 8, 16, 32, 64]]:  # ComBat
 
                 df = data.loc[data['dilution'].isin(combination), :]
                 X_train = df.iloc[:, 1:]
@@ -280,7 +274,7 @@ def train_with_missing_dilutions(X, Y, save_to=save_to, plot_id=''):
 
                 reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring='r2', cv=3, n_jobs=n_jobs)
 
-                # print('for combination {}'.format(combination))
+                print('for combination {}'.format(combination))
                 reg.fit(X_train, numpy.log2(y_train).values.ravel())
 
                 predictions = reg.predict(X_test)
@@ -408,18 +402,17 @@ def train_all_models():
     initial_pp = get_data(path, ['P1_PP', 'P2_SPP'], metabolites=pps)
     initial_aa = get_data(path, ['P1_AA', 'P2_SAA'], metabolites=aas)
     X, Y = assemble_dataset(initial_pp, initial_aa)
-    X = X.iloc[:, 1:]
-    print('training for initial data\n')
-    train_with_full_data(X, Y, outlier_thresholds=[1e7], plot_id='initial_nowater', save_to=save_to + 'full/')
 
-    # print('training for missing dilutions\n')
-    # train_with_missing_dilutions(X, Y, plot_id='_initial', save_to=save_to + 'full_missing_dilutions/')
+    # print('training for initial data\n')
+    # train_with_full_data(X, Y, outlier_thresholds=[1e7], plot_id='initial', save_to=save_to + 'full/')
+    print('training for missing dilutions\n')
+    train_with_missing_dilutions(X, Y, plot_id='_initial', save_to=save_to + 'full_missing_dilutions/')
     # print('training for missing metabolites\n')
     # train_with_missing_metabolites(X, Y, metabolite_group='aas', plot_id='_initial', save_to=save_to + 'full_missing_metabolites/')
     # train_with_missing_metabolites(X, Y, metabolite_group='pps', plot_id='_initial', save_to=save_to + 'full_missing_metabolites/')
     # # this is clearly not working
     # train_with_water_only(X, Y, outlier_thresholds=[4.4e7], plot_id='_initial', save_to=save_to + 'water_only/')
-    #
+
     # # RALPS
     # path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_normalized_2b632f6b.csv'
     # normalized_pp = get_data(path, ['P1_PP', 'P2_SPP'], metabolites=pps)
@@ -490,6 +483,29 @@ def plot_dilutions_of_metabolite_groups():
     plot_dilutions(initial_pp, pps, plot_name='PP_initial', save_to=save_to + 'dilutions/')
 
 
+def plot_results_for_missing_metabolites(save_to=save_to):
+
+    results = {
+        'compound_class': ['PP', 'PP', 'AA', 'AA', 'AA'],
+        'n_metabolites': [2, 3, 2, 3, 4],
+        'mse': [2.601, 0.824, 2.756, 1.800, 0.560],
+        'r2': [0.350, 0.794, 0.305, 0.546, 0.859]
+    }
+
+    seaborn.set_style('whitegrid')
+    pyplot.figure(figsize=(10, 4))
+
+    pyplot.subplot(121)
+    seaborn.barplot(x='n_metabolites', y='mse', hue='compound_class', data=pandas.DataFrame(results))
+    pyplot.subplot(122)
+    seaborn.barplot(x='n_metabolites', y='r2', hue='compound_class', data=pandas.DataFrame(results))
+
+    pyplot.tight_layout()
+    if not os.path.exists(save_to):
+        os.makedirs(save_to)
+    pyplot.savefig(save_to + 'results_missing_metabolites.pdf')
+
+
 if __name__ == '__main__':
 
-    train_all_models()
+    plot_results_for_missing_metabolites(save_to='/Users/andreidm/ETH/thesis/calibration_figs/')
