@@ -506,6 +506,42 @@ def plot_results_for_missing_metabolites(save_to=save_to):
     pyplot.savefig(save_to + 'results_missing_metabolites.pdf')
 
 
+def plot_results_for_normalization_methods():
+
+    results = {
+        'method': ['None', 'None', 'None', 'None', 'None',
+                   'RALPS', 'RALPS', 'RALPS', 'RALPS', 'RALPS',
+                   'ComBat', 'ComBat', 'ComBat', 'ComBat', 'ComBat',
+                   'WaveICA', 'WaveICA', 'WaveICA', 'WaveICA', 'WaveICA'],
+        'n_dilutions': [2, 3, 4, 5, 6,
+                        2, 3, 4, 5, 6,
+                        2, 3, 4, 5, 6,
+                        2, 3, 4, 5, 6],
+        'mse': [1.415, 1.529, 1.080, 0.670, 0.106,
+                1.906, 1.257, 0.690, 0.585, 0.255,
+                1.359, 0.786, 1.071, 0.603, 0.091,
+                1.441, 0.894, 1.095, 0.635, 0.073]
+    }
+
+    seaborn.set_style('whitegrid')
+    pyplot.figure(figsize=(7,7))
+    seaborn.barplot(x='n_dilutions', y='mse', hue='method', data=pandas.DataFrame(results))
+    if not os.path.exists(save_to):
+        os.makedirs(save_to)
+    pyplot.savefig('/Users/andreidm/ETH/thesis/calibration_figs/mse_methods_full_data.pdf')
+
+
 if __name__ == '__main__':
 
-    plot_results_for_missing_metabolites(save_to='/Users/andreidm/ETH/thesis/calibration_figs/')
+    from rdkit import Chem
+    from rdkit import DataStructs
+    from rdkit.Chem.Fingerprints import FingerprintMols
+
+    Lysine = 'C(CCN)CC(C(=O)O)N'
+    Phenyl = 'C1=CC=C(C=C1)CC(C(=O)O)N'
+
+    cs = Chem.CanonSmiles(Phenyl)
+    ms = Chem.MolFromSmiles(cs)
+    fps = FingerprintMols.FingerprintMol(ms)
+
+    print(fps)
