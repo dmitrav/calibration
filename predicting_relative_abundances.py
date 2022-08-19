@@ -1,5 +1,5 @@
 
-import numpy, pandas, seaborn, time, os
+import numpy, pandas, seaborn, time, os, itertools
 from matplotlib import pyplot
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
@@ -7,18 +7,21 @@ from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.metrics import r2_score, mean_squared_error, make_scorer
 from sklearn.svm import SVR
 
-from constants import aas, pps, mz_dict, parse_batch_label, save_to, split_ratio, seed, n_jobs, get_compounds_classes
+from constants import aas, pps, mz_dict, parse_batch_label, save_to
+from constants import split_ratio, seed, n_jobs, get_compounds_classes, dilutions
 from predicting_intensities import get_data
 
 
-def assemble_dataset(pp_data, aa_data, sample_type='SRM'):
+def assemble_dataset(pp_data, aa_data, sample_type='SRM', dils=None):
 
-    # spp = pp_data.loc[pp_data['sample'] == 'P2_SPP', :].sort_index()
-    water = pp_data.loc[pp_data['sample'] == 'P1_PP', :].sort_index()
     if sample_type == 'SRM':
         serum = pp_data.loc[pp_data['sample'] == 'P2_SRM', :].sort_index()
+        if dils:
+            serum = serum.loc[serum['dilution'].isin(dils)]
     elif sample_type == 'spike-in':
         serum = pp_data.loc[pp_data['sample'] == 'P2_SPP', :].sort_index()
+        if dils:
+            serum = serum.loc[serum['dilution'].isin(dils)]
     else:
         raise ValueError()
 
@@ -29,40 +32,34 @@ def assemble_dataset(pp_data, aa_data, sample_type='SRM'):
     X = pandas.DataFrame()
     for m in pps:
         df = pandas.concat([
-            # pp[m].reset_index(drop=True),
-            water[m].reset_index(drop=True),
             serum['dilution'].astype('int').reset_index(drop=True),
             pandas.Series([parse_batch_label(x) for x in list(serum[m].index)])
         ], axis=1)
-
-        df.columns = ['in_water', 'dilution', 'batch']
+        df.columns = ['dilution', 'batch']
         df['compound'] = m
         df['compound_class'] = 'PP'
         df['mz'] = mz_dict[m]
         X = pandas.concat([X.reset_index(drop=True), df.reset_index(drop=True)])
 
-    water = aa_data.loc[aa_data['sample'] == 'P1_AA', :].sort_index()
-    if sample_type == 'spike-in':
-        water.drop(index=('P1_AA_0064_0108_2'), inplace=True)  # this one is missing in P2_SAA
-
     if sample_type == 'SRM':
         serum = aa_data.loc[aa_data['sample'] == 'P2_SRM', :].sort_index()
+        if dils:
+            serum = serum.loc[serum['dilution'].isin(dils)]
         # sample.drop(index=('P2_SRM_0064_0108_2'), inplace=True)  # this one is missing in P2_SAA
     elif sample_type == 'spike-in':
         serum = aa_data.loc[aa_data['sample'] == 'P2_SAA', :].sort_index()
+        if dils:
+            serum = serum.loc[serum['dilution'].isin(dils)]
 
     for m in aas:
         Y = pandas.concat([Y.reset_index(drop=True), serum[m].reset_index(drop=True)])
 
     for m in aas:
         df = pandas.concat([
-            # aa[m].reset_index(drop=True),
-            water[m].reset_index(drop=True),
             serum['dilution'].astype('int').reset_index(drop=True),
             pandas.Series([parse_batch_label(x) for x in list(serum[m].index)])
         ], axis=1)
-        # df.columns = ['in_water', 'in_srm', 'dilution']
-        df.columns = ['in_water', 'dilution', 'batch']
+        df.columns = ['dilution', 'batch']
         df['compound'] = m
         df['compound_class'] = 'AA'
         df['mz'] = mz_dict[m]
@@ -99,7 +96,7 @@ def train_models(X, Y, plot_id='', save_to=save_to):
     ])
 
     param_grid = {
-        'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
+        'regressor__C': [0.01, 0.1, 1, 10, 100],
         'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
         'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
     }
@@ -125,8 +122,13 @@ def train_models(X, Y, plot_id='', save_to=save_to):
     pyplot.figure(figsize=(7, 7))
     seaborn.scatterplot(data=data, x='true', y='predicted', hue='batch', style='compound_class', size='mz',
                         palette='dark')
-    pyplot.ylim(0, 3)
-    pyplot.xlim(0, 3)
+
+    if 'spike_in' in plot_id:
+        pyplot.ylim(0, 1.5)
+        pyplot.xlim(0, 1.5)
+    else:
+        pyplot.ylim(0, 3)
+        pyplot.xlim(0, 3)
     pyplot.xlabel('relative abundance (true)')
     pyplot.ylabel('relative abundance (predicted)')
     pyplot.title('R2 = {:.3f}, MSE = {:.3f}'.format(r2, mse))
@@ -139,10 +141,10 @@ def train_models(X, Y, plot_id='', save_to=save_to):
     pyplot.close()
     # pyplot.show()
 
-    return reg
+    return reg, r2, mse
 
 
-if __name__ == '__main__':
+def train_on_srm_and_test_on_spikeins():
 
     path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
     initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
@@ -180,3 +182,87 @@ if __name__ == '__main__':
     # pyplot.show()
 
 
+def train_and_test_with_spike_ins_only():
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
+    initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
+    initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
+    X, Y = assemble_dataset(initial_pp, initial_aa, sample_type='spike-in')
+
+    print('training for initial data\n')
+    best_svr = train_models(X, Y, plot_id='initial_spike_ins', save_to=save_to + 'relabu/')
+
+
+def train_with_supplemented_spike_ins():
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
+    initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
+    initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
+
+    X, Y = assemble_dataset(initial_pp, initial_aa, sample_type='SRM')
+
+    # supplement combinations of dilutions
+    for k in range(2, len(dilutions)):
+        # pick randomly k dilutions to train on
+        dilutions_train = list(itertools.combinations(dilutions, k))
+
+        for combination in dilutions_train:
+            if '0001' not in combination:
+                pass  # always keep an undiluted sample
+            else:
+                eXtra, eYtra = assemble_dataset(initial_pp, initial_aa, sample_type='spike-in', dils=combination)
+                newX = pandas.concat([X.reset_index(drop=True), eXtra.reset_index(drop=True)]).reset_index(drop=True)
+                newY = pandas.concat([Y.reset_index(drop=True), eYtra.reset_index(drop=True)]).reset_index(drop=True)
+                print('training for supplemented combination: {}'.format(combination))
+                best_svr, r2, mse = train_models(newX, newY, plot_id='_'.join(combination),
+                                                 save_to=save_to + 'relabu/training_with_spike_ins/')
+
+
+def test_best_models_with_supplemented_spike_ins():
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
+    initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
+    initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
+
+    X, Y = assemble_dataset(initial_pp, initial_aa, sample_type='SRM')
+
+    for combination in [('0001', '0002'), ('0001', '0002', '0004')]:  # best r2, best mse
+        eXtra, eYtra = assemble_dataset(initial_pp, initial_aa, sample_type='spike-in', dils=combination)
+        newX = pandas.concat([X.reset_index(drop=True), eXtra.reset_index(drop=True)]).reset_index(drop=True)
+        newY = pandas.concat([Y.reset_index(drop=True), eYtra.reset_index(drop=True)]).reset_index(drop=True)
+        print('training for supplemented combination: {}'.format(combination))
+        best_svr, _, _ = train_models(newX, newY, plot_id='_'.join(combination),
+                                      save_to=save_to + 'relabu/training_with_spike_ins/')
+
+        X_test, Y_test = assemble_dataset(initial_pp, initial_aa, sample_type='spike-in',
+                                          dils=[x for x in dilutions if x not in combination or x == '0001'])
+
+        predictions = best_svr.predict(X_test)
+        r2 = r2_score(Y_test, predictions)
+        mse = mean_squared_error(Y_test, predictions)
+        print('r2 = {:.3f}, mse = {:.3f}'.format(r2, mse))
+
+        data = pandas.DataFrame({'true': Y_test.values.reshape(-1), 'predicted': predictions,
+                                 'batch': X_test['batch'].values.reshape(-1) + 1,
+                                 'mz': X_test['mz'].values.reshape(-1),
+                                 'compound_class': get_compounds_classes(X_test)})
+
+        pyplot.figure(figsize=(7, 7))
+        seaborn.scatterplot(data=data, x='true', y='predicted', hue='batch', style='compound_class', size='mz',
+                            palette='dark')
+        pyplot.xlabel('relative abundance (true)')
+        pyplot.ylabel('relative abundance (predicted)')
+        pyplot.title('Testing on SRM + spike-ins: R2 = {:.3f}, MSE = {:.3f}'.format(r2, mse))
+
+        pyplot.grid()
+        pyplot.tight_layout()
+        if not os.path.exists(save_to):
+            os.makedirs(save_to)
+        pyplot.savefig(
+            save_to + 'relabu/training_with_spike_ins/regression_testing_{}.pdf'.format('_'.join(combination)))
+        pyplot.close()
+        # pyplot.show()
+
+
+if __name__ == '__main__':
+    pass
