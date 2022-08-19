@@ -11,7 +11,7 @@ from sklearn.svm import SVR
 from matplotlib import pyplot
 from tqdm import tqdm
 
-from constants import dilutions, aas, pps, mz_dict
+from constants import dilutions, aas, pps, mz_dict, parse_batch_label
 from constants import seed, split_ratio
 from constants import save_to, n_jobs
 from constants import normalized_pp_metabolites, normalized_aa_metabolites, initial_aa_outliers, initial_pp_outliers
@@ -68,10 +68,13 @@ def assemble_dataset(pp_data, aa_data):
         df = pandas.concat([
             pp[m].reset_index(drop=True),
             srm[m].reset_index(drop=True),
-            srm['dilution'].astype('int').reset_index(drop=True)
+            srm['dilution'].astype('int').reset_index(drop=True),
+            # pp['dilution'].astype('int').reset_index(drop=True),
+            pandas.Series([parse_batch_label(x) for x in list(srm[m].index)])
         ], axis=1)
 
-        df.columns = ['in_water', 'in_srm', 'dilution']
+        # df.columns = ['in_water', 'in_srm', 'dilution']
+        df.columns = ['in_water', 'in_srm', 'dilution', 'batch']
         df['compound'] = m
         df['compound_class'] = 'PP'
         df['mz'] = mz_dict[m]
@@ -90,9 +93,12 @@ def assemble_dataset(pp_data, aa_data):
         df = pandas.concat([
             aa[m].reset_index(drop=True),
             srm[m].reset_index(drop=True),
-            srm['dilution'].astype('int').reset_index(drop=True)
+            srm['dilution'].astype('int').reset_index(drop=True),
+            # aa['dilution'].astype('int').reset_index(drop=True),
+            pandas.Series([parse_batch_label(x) for x in list(srm[m].index)])
         ], axis=1)
-        df.columns = ['in_water', 'in_srm', 'dilution']
+        # df.columns = ['in_water', 'in_srm', 'dilution']
+        df.columns = ['in_water', 'in_srm', 'dilution', 'batch']
         df['compound'] = m
         df['compound_class'] = 'AA'
         df['mz'] = mz_dict[m]
@@ -138,9 +144,6 @@ def train_baseline_model(X, Y,
         print('shape with t = {}: {}'.format(t, fY.shape))
         X_train, X_test, y_train, y_test = train_test_split(fX, fY, train_size=split_ratio, random_state=random_seed)
 
-        # TODO:
-        #  - try other models,
-        #  - implement systematic hyperparameter search
         pipeline = Pipeline([
             ('scaler', StandardScaler()),
             ('regressor', SVR())
@@ -160,8 +163,6 @@ def train_baseline_model(X, Y,
         print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
         print(reg.best_params_)
 
-        # TODO:
-        #  - look into feature importances
         predictions = numpy.exp(reg.predict(X_test))
         r2 = r2_score(y_test, predictions)
         mse = mean_squared_error(numpy.log(y_test), numpy.log(predictions))
@@ -217,14 +218,14 @@ def train_with_missing_dilutions(X, Y, threshold=1e7, save_to=save_to, plot_id='
                 ])
 
                 param_grid = {
-                    'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
+                    'regressor__C': [0.01, 0.1, 1, 10, 100],
                     'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
                     'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
                 }
 
                 reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring='r2', cv=3, n_jobs=n_jobs)
 
-                print('for combination {}'.format(combination))
+                # print('for combination {}'.format(combination))
                 reg.fit(X_train, numpy.log(y_train).values.ravel())
 
                 predictions = numpy.exp(reg.predict(X_test))
@@ -307,7 +308,7 @@ def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, 
             ])
 
             param_grid = {
-                'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
+                'regressor__C': [0.01, 0.1, 1, 10, 100],
                 'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
                 'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
             }
@@ -580,3 +581,64 @@ def plot_dilution_for_random_metabolites():
         data_batch = normalized_aa[normalized_aa['batch'] == bid]
         plot_dilutions(data_batch, random_metabolites)
         print()
+
+
+if __name__ == '__main__':
+
+    # INITIAL DATA
+    path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
+    initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
+    initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
+    X, Y = assemble_dataset(initial_pp, initial_aa)
+    print('training for the initial data\n')
+
+    fX, fY = remove_outliers(X, Y, 1e7)  # keep all values -> best performance
+    print('shape with t = {}: {}'.format(1e7, fY.shape))
+
+    X_train, X_test, y_train, y_test = train_test_split(fX, fY, train_size=split_ratio, random_state=seed)
+
+    pipeline = Pipeline([
+        ('scaler', StandardScaler()),
+        ('regressor', SVR())
+    ])
+
+    param_grid = {
+        'regressor__C': [0.01, 0.1, 1, 10, 100, 1000],
+        'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
+        'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
+    }
+
+    scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
+    reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=5, n_jobs=n_jobs)
+
+    start = time.time()
+    reg.fit(X_train, numpy.log(y_train).values.ravel())
+    print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
+    print(reg.best_params_)
+
+    predictions = pandas.DataFrame(reg.predict(X_test), index=y_test.index)
+
+    results = {'batch': [], 'cv': [], 'method': []}
+    for batch in X_test['batch'].unique():
+        results['batch'].append(batch+1)
+        values = predictions.loc[X_test.loc[X_test['batch'] == batch].index].values
+        results['cv'].append(numpy.std(values) / numpy.mean(values))
+        results['method'].append('calibration')
+
+    # get RALPS results
+    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_normalized_2b632f6b.csv'
+    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
+    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
+    _, Y = assemble_dataset(normalized_pp, normalized_aa)
+
+    for batch in X_test['batch'].unique():
+        results['batch'].append(batch+1)
+        values = numpy.log(Y.loc[X_test.loc[X_test['batch'] == batch].index]).values
+        results['cv'].append(numpy.std(values) / numpy.mean(values))
+        results['method'].append('RALPS')
+
+    results = pandas.DataFrame(results)
+    seaborn.barplot(x='batch', y='cv', hue='method', data=results)
+    pyplot.title('Variation coefficient per batch')
+    pyplot.tight_layout()
+    pyplot.savefig(save_to + 'predicting_intensities/comparison.pdf')

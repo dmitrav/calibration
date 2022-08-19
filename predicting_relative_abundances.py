@@ -81,6 +81,7 @@ def assemble_dataset(pp_data, aa_data, sample_type='SRM', dils=None):
                 /= Y.iloc[X.loc[(X['compound'] == m) & (X['batch'] == b) & (X['dilution'] == 1)].index].mean()
 
     X = pandas.get_dummies(X)
+    Y = Y.reset_index(drop=True)
     Y.columns = ['relabu']
 
     return X, Y
@@ -265,4 +266,58 @@ def test_best_models_with_supplemented_spike_ins():
 
 
 if __name__ == '__main__':
-    pass
+
+    path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
+    initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
+    initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
+    X, Y = assemble_dataset(initial_pp, initial_aa, sample_type='spike-in')
+
+    print('training for initial data\n')
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, train_size=split_ratio, random_state=seed)
+
+    pipeline = Pipeline([
+        ('scaler', StandardScaler()),
+        ('regressor', SVR())
+    ])
+
+    param_grid = {
+        'regressor__C': [0.01, 0.1, 1, 10, 100],
+        'regressor__kernel': ['linear', 'rbf', 'sigmoid'],
+        'regressor__epsilon': [0, 0.0001, 0.001, 0.01, 0.1]
+    }
+
+    scoring = {"r2": make_scorer(r2_score), "mse": make_scorer(mean_squared_error, greater_is_better=False)}
+    reg = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring=scoring, refit='r2', cv=5, n_jobs=n_jobs)
+
+    start = time.time()
+    reg.fit(X_train, y_train.values.ravel())
+    print('training for took {} min'.format(round(time.time() - start) // 60 + 1))
+    print(reg.best_params_)
+
+    predictions = pandas.DataFrame(reg.predict(X_test), index=y_test.index)
+
+    results = {'batch': [], 'cv': [], 'method': []}
+    for batch in X_test['batch'].unique():
+        results['batch'].append(batch+1)
+        values = predictions.loc[X_test.loc[X_test['batch'] == batch].index].values
+        results['cv'].append(numpy.std(values) / numpy.mean(values))
+        results['method'].append('calibration')
+
+    # get RALPS results
+    path = '/Users/andreidm/ETH/projects/calibration/data/SRM_SPP_normalized_2b632f6b.csv'
+    normalized_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
+    normalized_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
+    _, Y = assemble_dataset(initial_pp, initial_aa, sample_type='spike-in')
+
+    for batch in X_test['batch'].unique():
+        results['batch'].append(batch + 1)
+        values = Y.loc[X_test.loc[X_test['batch'] == batch].index].values
+        results['cv'].append(numpy.std(values) / numpy.mean(values))
+        results['method'].append('RALPS')
+
+    results = pandas.DataFrame(results)
+    seaborn.barplot(x='batch', y='cv', hue='method', data=results)
+    pyplot.title('Variation coefficient per batch')
+    pyplot.tight_layout()
+    pyplot.savefig(save_to + 'relabu/comparison.pdf')
+
