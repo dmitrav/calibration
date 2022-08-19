@@ -443,7 +443,7 @@ def plot_dilutions(data, metabolites=None, plot_name='', save_to='/Users/andreid
     data['dilution'] = data['dilution'].astype('int').astype('str') + 'x'
     for m in metabolites:
         print(m)
-        g = seaborn.FacetGrid(data, col="sample", col_wrap=2, sharey=False, aspect=1.25)
+        g = seaborn.FacetGrid(data, col="sample", col_wrap=3, sharey=False, aspect=1.)
         g.map(seaborn.boxplot, "dilution", m, order=['1x', '2x', '4x', '8x', '16x', '32x', '64x'])
         pyplot.tight_layout()
 
@@ -458,8 +458,8 @@ def plot_dilutions_of_metabolite_groups():
     save_to = '/Users/andreidm/ETH/projects/calibration/res/predicting_dilutions/'
 
     path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
-    initial_pp = get_data(path, ['P1_PP', 'P2_SPP'], metabolites=pps)
-    initial_aa = get_data(path, ['P1_AA', 'P2_SAA'], metabolites=aas)
+    initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
+    initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
 
     plot_dilutions(initial_aa, aas, plot_name='AA_initial', save_to=save_to + 'dilutions/')
     plot_dilutions(initial_pp, pps, plot_name='PP_initial', save_to=save_to + 'dilutions/')
@@ -514,15 +514,4 @@ def plot_results_for_normalization_methods():
 
 
 if __name__ == '__main__':
-
-    from rdkit import Chem
-    from rdkit.Chem.Fingerprints import FingerprintMols
-
-    Lysine = 'C(CCN)CC(C(=O)O)N'
-    Phenyl = 'C1=CC=C(C=C1)CC(C(=O)O)N'
-
-    cs = Chem.CanonSmiles(Phenyl)
-    ms = Chem.MolFromSmiles(cs)
-    fps = FingerprintMols.FingerprintMol(ms)
-
-    print(fps)
+    plot_dilutions_of_metabolite_groups()
