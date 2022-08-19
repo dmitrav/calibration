@@ -114,3 +114,18 @@ initial_aa_metabolites = [
 ]
 # crazy trends
 initial_aa_outliers = [x for x in [*normalized_pp_metabolites, *normalized_pp_outliers] if x not in initial_aa_metabolites]
+
+
+def get_compounds_classes(features):
+
+    compounds_classes = []
+    # hardcoded for two classes in the data only
+    for c in list(features['compound_class_AA']):
+        if int(c) == 1:
+            compounds_classes.append('AA')
+        elif int(c) == 0:
+            compounds_classes.append('PP')
+        else:
+            raise NotImplementedError
+
+    return compounds_classes

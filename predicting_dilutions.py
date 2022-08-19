@@ -2,21 +2,18 @@
 
 import os.path
 
-import pandas, seaborn, random, time, numpy, seaborn, itertools
-from matplotlib import pyplot
-from sklearn.preprocessing import MinMaxScaler, StandardScaler, MaxAbsScaler
-from sklearn.linear_model import Lasso, Ridge, ElasticNet, LinearRegression
+import pandas, time, numpy, seaborn, itertools
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import ElasticNet
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.metrics import r2_score, mean_squared_error, make_scorer
 from sklearn.svm import SVR
 from matplotlib import pyplot
-from tqdm import tqdm
 
-from constants import dilutions, aas, pps, mz_dict
+from constants import dilutions, aas, pps, mz_dict, get_compounds_classes
 from constants import seed, split_ratio
 from constants import save_to, n_jobs, parse_batch_label
-from constants import normalized_pp_metabolites, normalized_aa_metabolites, initial_aa_outliers, initial_pp_outliers
 
 
 def get_data(path, sample_codes, metabolites=None):
@@ -92,21 +89,6 @@ def remove_outliers(X, Y, threshold, column='srm_spike_in'):
     data = pandas.concat([Y, X], axis=1)
     data = data[data[column] < threshold]
     return data.iloc[:, 1:], data.iloc[:, 0]
-
-
-def get_compounds_classes(features):
-
-    compounds_classes = []
-    # hardcoded for two classes in the data only
-    for c in list(features['compound_class_AA']):
-        if int(c) == 1:
-            compounds_classes.append('AA')
-        elif int(c) == 0:
-            compounds_classes.append('PP')
-        else:
-            raise NotImplementedError
-
-    return compounds_classes
 
 
 def train_with_full_data(X, Y,
@@ -534,7 +516,6 @@ def plot_results_for_normalization_methods():
 if __name__ == '__main__':
 
     from rdkit import Chem
-    from rdkit import DataStructs
     from rdkit.Chem.Fingerprints import FingerprintMols
 
     Lysine = 'C(CCN)CC(C(=O)O)N'
