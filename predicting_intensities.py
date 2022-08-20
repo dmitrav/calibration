@@ -583,8 +583,7 @@ def plot_dilution_for_random_metabolites():
         print()
 
 
-if __name__ == '__main__':
-
+def compare_calibration_with_ralps():
     # INITIAL DATA
     path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
     initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
@@ -620,7 +619,7 @@ if __name__ == '__main__':
 
     results = {'batch': [], 'cv': [], 'method': []}
     for batch in X_test['batch'].unique():
-        results['batch'].append(batch+1)
+        results['batch'].append(batch + 1)
         values = predictions.loc[X_test.loc[X_test['batch'] == batch].index].values
         results['cv'].append(numpy.std(values) / numpy.mean(values))
         results['method'].append('calibration')
@@ -632,7 +631,7 @@ if __name__ == '__main__':
     _, Y = assemble_dataset(normalized_pp, normalized_aa)
 
     for batch in X_test['batch'].unique():
-        results['batch'].append(batch+1)
+        results['batch'].append(batch + 1)
         values = numpy.log(Y.loc[X_test.loc[X_test['batch'] == batch].index]).values
         results['cv'].append(numpy.std(values) / numpy.mean(values))
         results['method'].append('RALPS')
@@ -642,3 +641,7 @@ if __name__ == '__main__':
     pyplot.title('Variation coefficient per batch')
     pyplot.tight_layout()
     pyplot.savefig(save_to + 'predicting_intensities/comparison.pdf')
+
+
+if __name__ == '__main__':
+    pass

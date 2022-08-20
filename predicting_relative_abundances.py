@@ -136,11 +136,11 @@ def train_models(X, Y, plot_id='', save_to=save_to):
 
     pyplot.grid()
     pyplot.tight_layout()
-    if not os.path.exists(save_to):
-        os.makedirs(save_to)
-    pyplot.savefig(save_to + 'regression_{}.pdf'.format(plot_id))
-    pyplot.close()
-    # pyplot.show()
+    # if not os.path.exists(save_to):
+    #     os.makedirs(save_to)
+    # pyplot.savefig(save_to + 'regression_{}.pdf'.format(plot_id))
+    # pyplot.close()
+    pyplot.show()
 
     return reg, r2, mse
 
@@ -265,7 +265,7 @@ def test_best_models_with_supplemented_spike_ins():
         # pyplot.show()
 
 
-if __name__ == '__main__':
+def compare_calibration_with_ralps():
 
     path = '/Users/andreidm/ETH/projects/calibration/data/filtered_data.csv'
     initial_pp = get_data(path, ['P1_PP', 'P2_SPP', 'P2_SRM'], metabolites=pps)
@@ -298,7 +298,7 @@ if __name__ == '__main__':
 
     results = {'batch': [], 'cv': [], 'method': []}
     for batch in X_test['batch'].unique():
-        results['batch'].append(batch+1)
+        results['batch'].append(batch + 1)
         values = predictions.loc[X_test.loc[X_test['batch'] == batch].index].values
         results['cv'].append(numpy.std(values) / numpy.mean(values))
         results['method'].append('calibration')
@@ -321,3 +321,7 @@ if __name__ == '__main__':
     pyplot.tight_layout()
     pyplot.savefig(save_to + 'relabu/comparison.pdf')
 
+
+if __name__ == '__main__':
+
+    train_on_srm_and_test_on_spikeins()
