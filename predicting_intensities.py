@@ -251,18 +251,18 @@ def train_with_missing_dilutions(X, Y, threshold=1e7, save_to=save_to, plot_id='
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
-    seaborn.set_theme(style='whitegrid')
-    seaborn.barplot(x='n_dilutions', y='score', data=df[df['metric'] == 'R2'])
-    pyplot.ylim(0, 1)
-    pyplot.title('Best R2 scores')
-    pyplot.savefig(save_to + 'missing_dilutions_r2_t={:.1e}{}.pdf'.format(threshold, plot_id))
-    pyplot.close()
-
-    seaborn.barplot(x='n_dilutions', y='score', data=df[df['metric'] == 'MSE'])
-    pyplot.ylim(0, 1)
-    pyplot.title('Best MSE(log) scores')
-    pyplot.savefig(save_to + 'missing_dilutions_mse_t={:.1e}{}.pdf'.format(threshold, plot_id))
-    pyplot.close()
+    # seaborn.set_theme(style='whitegrid')
+    # seaborn.barplot(x='n_dilutions', y='score', data=df[df['metric'] == 'R2'])
+    # pyplot.ylim(0, 1)
+    # pyplot.title('Best R2 scores')
+    # pyplot.savefig(save_to + 'missing_dilutions_r2_t={:.1e}{}.pdf'.format(threshold, plot_id))
+    # pyplot.close()
+    #
+    # seaborn.barplot(x='n_dilutions', y='score', data=df[df['metric'] == 'MSE'])
+    # pyplot.ylim(0, 1)
+    # pyplot.title('Best MSE(log) scores')
+    # pyplot.savefig(save_to + 'missing_dilutions_mse_t={:.1e}{}.pdf'.format(threshold, plot_id))
+    # pyplot.close()
 
 
 def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, plot_id='', save_to=save_to):
@@ -339,18 +339,18 @@ def train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=1e7, 
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
-    seaborn.set_theme(style='whitegrid')
-    seaborn.barplot(x='n_metabolites', y='score', data=df[df['metric'] == 'R2'])
-    pyplot.ylim(0, 1)
-    pyplot.title('Best R2 scores')
-    pyplot.savefig(save_to + 'missing_{}_r2_t={:.1e}{}.pdf'.format(metabolite_group, threshold, plot_id))
-    pyplot.close()
-
-    seaborn.barplot(x='n_metabolites', y='score', data=df[df['metric'] == 'MSE'])
-    pyplot.ylim(0, 1)
-    pyplot.title('Best MSE(log) scores')
-    pyplot.savefig(save_to + 'missing_{}_mse_t={:.1e}{}.pdf'.format(metabolite_group, threshold, plot_id))
-    pyplot.close()
+    # seaborn.set_theme(style='whitegrid')
+    # seaborn.barplot(x='n_metabolites', y='score', data=df[df['metric'] == 'R2'])
+    # pyplot.ylim(0, 1)
+    # pyplot.title('Best R2 scores')
+    # pyplot.savefig(save_to + 'missing_{}_r2_t={:.1e}{}.pdf'.format(metabolite_group, threshold, plot_id))
+    # pyplot.close()
+    #
+    # seaborn.barplot(x='n_metabolites', y='score', data=df[df['metric'] == 'MSE'])
+    # pyplot.ylim(0, 1)
+    # pyplot.title('Best MSE(log) scores')
+    # pyplot.savefig(save_to + 'missing_{}_mse_t={:.1e}{}.pdf'.format(metabolite_group, threshold, plot_id))
+    # pyplot.close()
 
 
 def train_models_for_target_metabolites():
@@ -361,7 +361,7 @@ def train_models_for_target_metabolites():
     initial_aa = get_data(path, ['P1_AA', 'P2_SAA', 'P2_SRM'], metabolites=aas)
     X, Y = assemble_dataset(initial_pp, initial_aa)
     print('training for the initial data\n')
-    train_baseline_model(X, Y, plot_id='_initial', save_to=save_to + 'baseline/')
+    # train_baseline_model(X, Y, plot_id='_initial', save_to=save_to + 'baseline/')
     train_with_missing_dilutions(X, Y, threshold=2e6, plot_id='_initial', save_to=save_to + 'missing_dilutions/')
     train_with_missing_dilutions(X, Y, threshold=1e7, plot_id='_initial', save_to=save_to + 'missing_dilutions/')
     train_with_missing_metabolites(X, Y, metabolite_group='aas', threshold=2e6, plot_id='_initial', save_to=save_to + 'missing_metabolites/')

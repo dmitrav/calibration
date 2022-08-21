@@ -316,12 +316,13 @@ def compare_calibration_with_ralps():
         results['method'].append('RALPS')
 
     results = pandas.DataFrame(results)
+    pyplot.figure(figsize=(8,7))
     seaborn.barplot(x='batch', y='cv', hue='method', data=results)
     pyplot.title('Variation coefficient per batch')
     pyplot.tight_layout()
     pyplot.savefig(save_to + 'relabu/comparison.pdf')
+    # pyplot.show()
 
 
 if __name__ == '__main__':
-
-    train_on_srm_and_test_on_spikeins()
+    pass

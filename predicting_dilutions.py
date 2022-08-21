@@ -514,4 +514,4 @@ def plot_results_for_normalization_methods():
 
 
 if __name__ == '__main__':
-    plot_dilutions_of_metabolite_groups()
+    pass
